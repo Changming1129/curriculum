@@ -1,0 +1,1472 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>新北市立佳林國中 115學年度第一學期 課表查詢與列印系統 (全校35班完整版)</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Vue 3 CDN -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;600;700&display=swap');
+    body {
+      font-family: 'Noto Sans TC', sans-serif;
+    }
+    
+    /* 列印專用樣式 */
+    @media print {
+      .no-print {
+        display: none !important;
+      }
+      body {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+      }
+      .print-container {
+        width: 100% !important;
+        max-width: 100% !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+      }
+      table {
+        page-break-inside: auto;
+        border-collapse: collapse !important;
+        width: 100% !important;
+      }
+      tr {
+        page-break-inside: avoid;
+        page-break-after: auto;
+      }
+      thead {
+        display: table-header-group;
+      }
+      th, td {
+        border: 1px solid #333333 !important;
+        padding: 4px 6px !important;
+        font-size: 11px !important;
+      }
+      .print-title {
+        display: block !important;
+      }
+
+      /* 僅列印調代課申請單模式 */
+      body.print-slip-only {
+        background-color: #ffffff !important;
+      }
+      body.print-slip-only * {
+        visibility: hidden !important;
+      }
+      body.print-slip-only #official-slip-card,
+      body.print-slip-only #official-slip-card * {
+        visibility: visible !important;
+      }
+      body.print-slip-only #official-slip-card {
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+      }
+      body.print-slip-only #official-slip-card .no-print {
+        display: none !important;
+      }
+    }
+    @page {
+      size: A4 landscape;
+      margin: 1cm;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+  <div id="app" class="flex flex-col min-h-screen">
+    
+    <!-- 頂部導航欄 (列印時隱藏) -->
+    <header class="no-print bg-indigo-900 text-white shadow-lg sticky top-0 z-50">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-wrap items-center justify-between gap-4">
+        <div class="flex items-center space-x-3">
+          <div class="w-10 h-10 rounded-xl bg-indigo-700 flex items-center justify-center shadow-inner text-amber-300">
+            <i class="fa-solid fa-graduation-cap text-xl"></i>
+          </div>
+          <div>
+            <h1 class="text-lg font-bold tracking-wide">佳林國中 115學年度第一學期 課表系統</h1>
+            <p class="text-xs text-indigo-200">全校 35 班課表彙整平台 (單雙週解析 / 同班級調課媒合)</p>
+          </div>
+        </div>
+
+        <!-- 導航切換按鈕 -->
+        <div class="flex flex-wrap items-center bg-indigo-950/60 p-1 rounded-xl border border-indigo-700/50 gap-1">
+          <button 
+            @click="currentView = 'matrix'"
+            :class="currentView === 'matrix' ? 'bg-indigo-600 text-white shadow' : 'text-indigo-200 hover:text-white'"
+            class="px-3 py-1.5 rounded-lg text-xs md:text-sm font-medium transition flex items-center gap-1.5">
+            <i class="fa-solid fa-table-cells"></i> 當日課表總覽
+          </button>
+          <button 
+            @click="currentView = 'teacher_matrix'"
+            :class="currentView === 'teacher_matrix' ? 'bg-indigo-600 text-white shadow' : 'text-indigo-200 hover:text-white'"
+            class="px-3 py-1.5 rounded-lg text-xs md:text-sm font-medium transition flex items-center gap-1.5">
+            <i class="fa-solid fa-user-tie"></i> 當日教師空堂表
+          </button>
+          <button 
+            @click="currentView = 'single_teacher'"
+            :class="currentView === 'single_teacher' ? 'bg-indigo-600 text-white shadow' : 'text-indigo-200 hover:text-white'"
+            class="px-3 py-1.5 rounded-lg text-xs md:text-sm font-medium transition flex items-center gap-1.5">
+            <i class="fa-solid fa-address-card"></i> 教師個人週課表
+          </button>
+          <button 
+            @click="currentView = 'single_class'"
+            :class="currentView === 'single_class' ? 'bg-indigo-600 text-white shadow' : 'text-indigo-200 hover:text-white'"
+            class="px-3 py-1.5 rounded-lg text-xs md:text-sm font-medium transition flex items-center gap-1.5">
+            <i class="fa-solid fa-school"></i> 班級週課表
+          </button>
+          <button 
+            @click="currentView = 'substitution'"
+            :class="currentView === 'substitution' ? 'bg-amber-600 text-white shadow' : 'text-amber-200 hover:text-white'"
+            class="px-3 py-1.5 rounded-lg text-xs md:text-sm font-medium transition flex items-center gap-1.5">
+            <i class="fa-solid fa-right-left"></i> 調代課智慧媒合
+          </button>
+        </div>
+
+        <!-- 列印與匯出工具按鈕 -->
+        <div class="flex items-center space-x-2">
+          <button 
+            @click="printSchedule" 
+            class="bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-1.5 rounded-lg text-sm font-medium transition shadow flex items-center gap-1.5">
+            <i class="fa-solid fa-print"></i> 列印課表
+          </button>
+          <button 
+            @click="exportToCSV" 
+            class="bg-slate-700 hover:bg-slate-600 text-white px-3.5 py-1.5 rounded-lg text-sm font-medium transition shadow flex items-center gap-1.5">
+            <i class="fa-solid fa-file-excel"></i> 匯出 CSV
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- 主要內容區塊 -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 print-container">
+
+      <!-- 列印專用抬頭 (僅列印時顯示) -->
+      <div class="hidden print-title text-center mb-4">
+        <h2 class="text-xl font-bold text-gray-900">新北市立佳林國民中學 115學年度第一學期課程表彙整</h2>
+        <div class="text-sm text-gray-700 flex justify-between px-2 mt-1">
+          <span>查詢範圍：{{ selectedGradeLabel }} ({{ selectedDay }} - {{ selectedWeekModeLabel }})</span>
+          <span>製表日期：2026/08/31</span>
+        </div>
+      </div>
+
+      <!-- 篩選控制器卡片 (列印時隱藏) -->
+      <div class="no-print bg-white p-5 rounded-2xl shadow-sm border border-slate-200/80 mb-6 transition">
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+          
+          <!-- 選擇單雙週輪替 -->
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+              <i class="fa-solid fa-repeat text-indigo-500 mr-1"></i> 單雙週模式
+            </label>
+            <div class="grid grid-cols-3 gap-1 bg-slate-100 p-1 rounded-xl">
+              <button 
+                @click="selectedWeekMode = 'all'"
+                :class="selectedWeekMode === 'all' ? 'bg-indigo-600 text-white font-medium shadow-sm' : 'text-slate-600 hover:text-indigo-600'"
+                class="py-1.5 text-xs text-center rounded-lg transition">
+                全顯
+              </button>
+              <button 
+                @click="selectedWeekMode = 'odd'"
+                :class="selectedWeekMode === 'odd' ? 'bg-amber-600 text-white font-medium shadow-sm' : 'text-slate-600 hover:text-amber-600'"
+                class="py-1.5 text-xs text-center rounded-lg transition">
+                單週
+              </button>
+              <button 
+                @click="selectedWeekMode = 'even'"
+                :class="selectedWeekMode === 'even' ? 'bg-emerald-600 text-white font-medium shadow-sm' : 'text-slate-600 hover:text-emerald-600'"
+                class="py-1.5 text-xs text-center rounded-lg transition">
+                雙週
+              </button>
+            </div>
+          </div>
+
+          <!-- 選擇星期 -->
+          <div v-if="currentView === 'matrix' || currentView === 'teacher_matrix'">
+            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+              <i class="fa-regular fa-calendar text-indigo-500 mr-1"></i> 選擇星期
+            </label>
+            <div class="grid grid-cols-5 gap-1 bg-slate-100 p-1 rounded-xl">
+              <button 
+                v-for="day in days" 
+                :key="day"
+                @click="selectedDay = day"
+                :class="selectedDay === day ? 'bg-indigo-600 text-white font-medium shadow-sm' : 'text-slate-600 hover:text-indigo-600'"
+                class="py-1.5 text-xs text-center rounded-lg transition">
+                {{ day.replace('星期', '週') }}
+              </button>
+            </div>
+          </div>
+
+          <!-- 選擇年級 / 範圍 -->
+          <div v-if="currentView === 'matrix'">
+            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+              <i class="fa-solid fa-layer-group text-indigo-500 mr-1"></i> 選擇年級
+            </label>
+            <div class="grid grid-cols-4 gap-1 bg-slate-100 p-1 rounded-xl">
+              <button 
+                v-for="g in grades" 
+                :key="g.value"
+                @click="selectedGrade = g.value"
+                :class="selectedGrade === g.value ? 'bg-indigo-600 text-white font-medium shadow-sm' : 'text-slate-600 hover:text-indigo-600'"
+                class="py-1.5 text-xs text-center rounded-lg transition">
+                {{ g.label }}
+              </button>
+            </div>
+          </div>
+
+          <!-- 教師選擇器 (個人教師課表時) -->
+          <div v-if="currentView === 'single_teacher'" class="md:col-span-2">
+            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+              <i class="fa-solid fa-chalkboard-user text-indigo-500 mr-1"></i> 選擇授課教師
+            </label>
+            <div class="flex gap-2">
+              <select 
+                v-model="selectedTeacher" 
+                class="w-full bg-slate-50 border border-slate-300 text-slate-800 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                <option v-for="t in allTeachersList" :key="t" :value="t">{{ t }} 老師</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- 班級選擇器 (個別班級課表時) -->
+          <div v-if="currentView === 'single_class'" class="md:col-span-2">
+            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+              <i class="fa-solid fa-chalkboard text-indigo-500 mr-1"></i> 選擇班級 (全校共 35 班)
+            </label>
+            <select 
+              v-model="selectedClass" 
+              class="w-full bg-slate-50 border border-slate-300 text-slate-800 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+              <option v-for="c in allClassesList" :key="c" :value="c">{{ c }}</option>
+            </select>
+          </div>
+
+          <!-- 搜尋與關鍵字高亮 -->
+          <div :class="(currentView === 'single_teacher' || currentView === 'single_class') ? 'md:col-span-2' : 'md:col-span-2'">
+            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+              <i class="fa-solid fa-magnifying-glass text-indigo-500 mr-1"></i> 搜尋教師姓名或科目 (即時標記)
+            </label>
+            <div class="relative">
+              <input 
+                type="text" 
+                v-model="searchKeyword" 
+                placeholder="例如: 汪家慧, 國文, 理化..." 
+                class="w-full bg-slate-50 border border-slate-300 text-slate-800 pl-9 pr-8 py-2 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none placeholder-slate-400">
+              <i class="fa-solid fa-search absolute left-3 top-3 text-slate-400 text-xs"></i>
+              <button 
+                v-if="searchKeyword" 
+                @click="searchKeyword = ''" 
+                class="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 p-1 text-xs">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- 快速統計資訊 Bar -->
+        <div class="mt-4 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between text-xs text-slate-500 gap-2">
+          <div class="flex items-center gap-4">
+            <span>模式：<strong class="text-indigo-600 font-semibold">{{ selectedWeekModeLabel }}</strong></span>
+            <span>•</span>
+            <span><strong class="text-indigo-600 font-semibold">{{ currentTotalClasses }}</strong> 個班級</span>
+            <span>•</span>
+            <span><strong class="text-emerald-600 font-semibold">{{ currentTotalPeriods }}</strong> 總授課節數</span>
+            <span>•</span>
+            <span><strong class="text-amber-600 font-semibold">{{ uniqueTeachersTodayCount }}</strong> 位當日任課教師</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="inline-block w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+            <span>高亮標記搜尋項目</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================= 視圖 1: 當日各班課表矩陣 (依年級/全校) ================= -->
+      <div v-if="currentView === 'matrix'" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="no-print bg-slate-50 px-6 py-3 border-b border-slate-200 flex justify-between items-center">
+          <h3 class="font-bold text-slate-700 flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-indigo-600"></span>
+            {{ selectedDay }} - {{ selectedGradeLabel }} 全日課表總表 ({{ selectedWeekModeLabel }})
+          </h3>
+          <span class="text-xs text-slate-400">表格顯示格式：【科目】任課教師</span>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-center border-collapse">
+            <thead>
+              <tr class="bg-indigo-900 text-white text-xs font-semibold">
+                <th class="py-3 px-3 w-28 border-r border-indigo-800 sticky left-0 bg-indigo-900 z-10">班級 \ 節次</th>
+                <th v-for="(period, idx) in periodHeaders" :key="idx" class="py-3 px-2 border-r border-indigo-800 last:border-r-0 min-w-[120px]">
+                  <div>{{ period.name }}</div>
+                  <div class="text-[10px] font-normal text-indigo-200 mt-0.5">{{ period.time }}</div>
+                </th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 text-xs">
+              <tr 
+                v-for="cls in filteredClasses" 
+                :key="cls" 
+                class="hover:bg-indigo-50/40 transition">
+                <td class="py-2.5 px-3 font-bold text-slate-800 bg-slate-50/90 border-r border-slate-200 sticky left-0 z-10 flex items-center justify-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full" :class="getGradeBadgeColor(cls)"></span>
+                  {{ cls }}
+                </td>
+
+                <td 
+                  v-for="pIndex in 7" 
+                  :key="pIndex" 
+                  class="py-2 px-1.5 border-r border-slate-100 last:border-r-0 transition"
+                  :class="isCellMatched(cls, selectedDay, pIndex) ? 'bg-amber-100 font-semibold ring-2 ring-amber-400 ring-inset rounded-sm' : ''">
+                  
+                  <div v-if="getLesson(cls, selectedDay, pIndex)" class="flex flex-col items-center justify-center leading-tight">
+                    <span class="font-medium text-slate-800 text-[12px]">
+                      {{ getLesson(cls, selectedDay, pIndex).subject }}
+                    </span>
+                    <span class="text-indigo-600 font-semibold text-[11px] mt-0.5 flex items-center gap-1">
+                      <i class="fa-solid fa-user-tie text-[9px] opacity-70"></i>
+                      {{ getLesson(cls, selectedDay, pIndex).teacher }}
+                    </span>
+                  </div>
+                  <div v-else class="text-slate-300 text-[11px]">—</div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ================= 視圖 2: 教師當日空堂與授課總表 ================= -->
+      <div v-if="currentView === 'teacher_matrix'" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="no-print bg-slate-50 px-6 py-3 border-b border-slate-200 flex justify-between items-center">
+          <h3 class="font-bold text-slate-700 flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-600"></span>
+            {{ selectedDay }} - 全校教師課堂分佈與空堂表 ({{ selectedWeekModeLabel }})
+          </h3>
+          <span class="text-xs text-slate-400">綠色代表空堂可代課 / 藍色代表授課中</span>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-center border-collapse">
+            <thead>
+              <tr class="bg-slate-800 text-white text-xs font-semibold">
+                <th class="py-3 px-4 w-32 border-r border-slate-700 sticky left-0 bg-slate-800 z-10">教師姓名</th>
+                <th v-for="(period, idx) in periodHeaders" :key="idx" class="py-3 px-2 border-r border-slate-700 last:border-r-0 min-w-[100px]">
+                  <div>{{ period.name }}</div>
+                  <div class="text-[10px] font-normal text-slate-300 mt-0.5">{{ period.time }}</div>
+                </th>
+                <th class="py-3 px-3 w-24 bg-slate-900">當日堂數</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 text-xs">
+              <tr 
+                v-for="teacher in searchedTeachersList" 
+                :key="teacher" 
+                class="hover:bg-slate-50 transition">
+                <td class="py-2.5 px-3 font-bold text-slate-800 bg-slate-50 border-r border-slate-200 sticky left-0 z-10">
+                  {{ teacher }}
+                </td>
+                
+                <td 
+                  v-for="pIndex in 7" 
+                  :key="pIndex"
+                  class="py-2 px-1.5 border-r border-slate-100 last:border-r-0">
+                  <div v-if="getTeacherPeriodLesson(teacher, selectedDay, pIndex)" class="bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg py-1 px-1">
+                    <div class="font-bold">{{ getTeacherPeriodLesson(teacher, selectedDay, pIndex).className }}</div>
+                    <div class="text-[10px] text-slate-500">{{ getTeacherPeriodLesson(teacher, selectedDay, pIndex).subject }}</div>
+                  </div>
+                  <div v-else class="text-emerald-700 bg-emerald-50/50 rounded-lg py-1 font-medium text-[11px]">
+                    空堂
+                  </div>
+                </td>
+
+                <td class="py-2 px-2 font-bold text-indigo-700 bg-slate-50/50">
+                  {{ getTeacherDailyCount(teacher, selectedDay) }} 節
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ================= 視圖 3: 單一教師個人週課表 ================= -->
+      <div v-if="currentView === 'single_teacher'" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="p-6 bg-gradient-to-r from-indigo-900 to-indigo-800 text-white flex flex-wrap justify-between items-center gap-4">
+          <div>
+            <div class="text-xs text-indigo-200 font-medium">教師個人課表 ({{ selectedWeekModeLabel }})</div>
+            <h2 class="text-2xl font-bold mt-0.5">{{ selectedTeacher }} 老師</h2>
+          </div>
+          <div class="flex items-center gap-4 text-center">
+            <div class="bg-indigo-800/80 px-4 py-2 rounded-xl border border-indigo-700">
+              <div class="text-xs text-indigo-200">每週授課總節數</div>
+              <div class="text-xl font-bold text-amber-300">{{ getTeacherWeeklyTotal(selectedTeacher) }} 節</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto p-4">
+          <table class="w-full text-center border border-slate-200 rounded-xl overflow-hidden">
+            <thead>
+              <tr class="bg-slate-100 text-slate-700 text-xs font-semibold">
+                <th class="py-3 px-3 w-28 border border-slate-200">節次 \ 星期</th>
+                <th v-for="day in days" :key="day" class="py-3 px-3 border border-slate-200">{{ day }}</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200 text-xs">
+              <tr v-for="(period, pIdx) in periodHeaders" :key="pIdx">
+                <td class="py-3 px-2 bg-slate-50 font-bold border border-slate-200">
+                  <div>{{ period.name }}</div>
+                  <div class="text-[10px] text-slate-400 font-normal">{{ period.time }}</div>
+                </td>
+                <td 
+                  v-for="day in days" 
+                  :key="day" 
+                  class="py-3 px-2 border border-slate-200 h-16"
+                  :class="getTeacherPeriodLesson(selectedTeacher, day, pIdx+1) ? 'bg-indigo-50/70' : 'bg-white'">
+                  <div v-if="getTeacherPeriodLesson(selectedTeacher, day, pIdx+1)">
+                    <span class="inline-block px-2.5 py-0.5 bg-indigo-600 text-white rounded-full text-[11px] font-semibold mb-1">
+                      {{ getTeacherPeriodLesson(selectedTeacher, day, pIdx+1).className }}
+                    </span>
+                    <div class="font-bold text-slate-700 text-sm">
+                      {{ getTeacherPeriodLesson(selectedTeacher, day, pIdx+1).subject }}
+                    </div>
+                  </div>
+                  <div v-else class="text-slate-300 text-xs">—</div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ================= 視圖 4: 單一班級週課表 ================= -->
+      <div v-if="currentView === 'single_class'" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="p-6 bg-gradient-to-r from-slate-900 to-slate-800 text-white flex justify-between items-center">
+          <div>
+            <div class="text-xs text-slate-300">新北市立佳林國中 班級課表 ({{ selectedWeekModeLabel }})</div>
+            <h2 class="text-2xl font-bold mt-0.5">{{ selectedClass }}</h2>
+          </div>
+          <span class="text-xs bg-slate-700 px-3 py-1.5 rounded-lg border border-slate-600">全學期課程表</span>
+        </div>
+
+        <div class="overflow-x-auto p-4">
+          <table class="w-full text-center border border-slate-200 rounded-xl overflow-hidden">
+            <thead>
+              <tr class="bg-slate-100 text-slate-700 text-xs font-semibold">
+                <th class="py-3 px-3 w-28 border border-slate-200">節次 \ 星期</th>
+                <th v-for="day in days" :key="day" class="py-3 px-3 border border-slate-200">{{ day }}</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200 text-xs">
+              <tr v-for="(period, pIdx) in periodHeaders" :key="pIdx">
+                <td class="py-3 px-2 bg-slate-50 font-bold border border-slate-200">
+                  <div>{{ period.name }}</div>
+                  <div class="text-[10px] text-slate-400 font-normal">{{ period.time }}</div>
+                </td>
+                <td 
+                  v-for="day in days" 
+                  :key="day" 
+                  class="py-3 px-2 border border-slate-200 h-16"
+                  :class="getLesson(selectedClass, day, pIdx+1) ? 'bg-indigo-50/50' : 'bg-white'">
+                  <div v-if="getLesson(selectedClass, day, pIdx+1)" class="flex flex-col items-center">
+                    <span class="font-bold text-slate-800 text-sm">
+                      {{ getLesson(selectedClass, day, pIdx+1).subject }}
+                    </span>
+                    <span class="text-indigo-600 font-semibold text-xs mt-1">
+                      {{ getLesson(selectedClass, day, pIdx+1).teacher }}
+                    </span>
+                  </div>
+                  <div v-else class="text-slate-300 text-xs">—</div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ================= 視圖 5: 調代課智慧媒合系統 ================= -->
+      <div v-if="currentView === 'substitution'" class="space-y-6">
+        
+        <!-- 頂部設定卡片 -->
+        <div class="no-print bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+          <div class="flex items-center gap-3 mb-4 pb-3 border-b border-slate-100">
+            <div class="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold">
+              <i class="fa-solid fa-right-left"></i>
+            </div>
+            <div>
+              <h3 class="font-bold text-slate-800 text-base">調代課需求設定</h3>
+              <p class="text-xs text-slate-500">選擇原授課教師與請假/調課節次，系統將自動比對全校課表尋找最佳代課與同班級對調對象</p>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <!-- 申請教師 -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 mb-1.5">
+                <i class="fa-solid fa-user text-indigo-500 mr-1"></i> 原授課教師 (申請人)
+              </label>
+              <select 
+                v-model="subTeacher" 
+                class="w-full bg-slate-50 border border-slate-300 text-slate-800 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                <option v-for="t in allTeachersList" :key="t" :value="t">{{ t }} 老師</option>
+              </select>
+            </div>
+
+            <!-- 請假星期與節次 -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 mb-1.5">
+                <i class="fa-regular fa-calendar-days text-indigo-500 mr-1"></i> 請假/調課 星期
+              </label>
+              <select 
+                v-model="subDay" 
+                class="w-full bg-slate-50 border border-slate-300 text-slate-800 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                <option v-for="d in days" :key="d" :value="d">{{ d }}</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 mb-1.5">
+                <i class="fa-solid fa-clock text-indigo-500 mr-1"></i> 請假/調課 節次
+              </label>
+              <select 
+                v-model.number="subPeriod" 
+                class="w-full bg-slate-50 border border-slate-300 text-slate-800 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                <option v-for="(p, pIdx) in periodHeaders" :key="pIdx" :value="pIdx + 1">
+                  {{ p.name }} ({{ p.time }})
+                </option>
+              </select>
+            </div>
+
+            <!-- 媒合模式選擇 -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 mb-1.5">
+                <i class="fa-solid fa-sliders text-indigo-500 mr-1"></i> 尋找模式
+              </label>
+              <div class="grid grid-cols-2 gap-1 bg-slate-100 p-1 rounded-xl">
+                <button 
+                  @click="subMode = 'sub'"
+                  :class="subMode === 'sub' ? 'bg-amber-600 text-white font-medium shadow-sm' : 'text-slate-600 hover:text-amber-600'"
+                  class="py-1.5 text-xs text-center rounded-lg transition flex items-center justify-center gap-1">
+                  <i class="fa-solid fa-user-plus text-[10px]"></i> 尋找代課
+                </button>
+                <button 
+                  @click="subMode = 'swap'"
+                  :class="subMode === 'swap' ? 'bg-indigo-600 text-white font-medium shadow-sm' : 'text-slate-600 hover:text-indigo-600'"
+                  class="py-1.5 text-xs text-center rounded-lg transition flex items-center justify-center gap-1">
+                  <i class="fa-solid fa-rotate text-[10px]"></i> 尋找對調
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 課堂資訊警示狀態 -->
+          <div class="mt-4 p-3 rounded-xl bg-amber-50 border border-amber-200/80 flex flex-wrap items-center justify-between text-xs text-amber-900 gap-2">
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-circle-info text-amber-600"></i>
+              <span>目標課堂：<strong class="text-indigo-900 font-bold">{{ subTeacher }} 老師</strong> 在 <strong>{{ subDay }} {{ periodHeaders[subPeriod-1]?.name }}</strong></span>
+              <span v-if="subCurrentTargetLesson" class="bg-amber-200 text-amber-900 px-2 py-0.5 rounded font-bold">
+                【{{ subCurrentTargetLesson.className }}】 {{ subCurrentTargetLesson.subject }}
+              </span>
+              <span v-else class="text-slate-500 italic">(該時段原教師無排課/為空堂)</span>
+            </div>
+            <div class="flex items-center gap-3" v-if="subMode === 'sub'">
+              <label class="inline-flex items-center cursor-pointer">
+                <input type="checkbox" v-model="subSameSubjectOnly" class="rounded text-amber-600 focus:ring-amber-500 h-3.5 w-3.5">
+                <span class="ml-1.5 text-xs text-slate-700">優先顯示同領域/科目教師</span>
+              </label>
+            </div>
+            <div v-else class="text-indigo-800 font-semibold flex items-center gap-1">
+              <i class="fa-solid fa-shield-halved text-indigo-600"></i> 【同班級對調原則】：限定同一班級任課教師，甲授課(乙空堂) ↔ 乙授課(甲空堂) 雙向互調
+            </div>
+          </div>
+        </div>
+
+        <!-- 媒合結果列表區塊 -->
+        <div class="no-print bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          <div class="bg-slate-50 px-6 py-3 border-b border-slate-200 flex justify-between items-center">
+            <h3 class="font-bold text-slate-700 text-sm flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full" :class="subMode === 'sub' ? 'bg-amber-500' : 'bg-indigo-500'"></span>
+              {{ subMode === 'sub' ? '【代課人選建議】該節空堂教師列表' : '【同班級對調課建議】同班任課教師之雙向空堂互調組合' }}
+              <span class="text-xs font-normal text-slate-500">(共 {{ subCandidatesList.length }} 組符合)</span>
+            </h3>
+            <span class="text-xs text-slate-400">點擊列右側按鈕可複製請託訊息或產製單據</span>
+          </div>
+          <!-- 調課模式列表 (限定同班級任課教師雙向對調) -->
+          <div v-if="subMode === 'swap'" class="divide-y divide-slate-100">
+            <div 
+              v-for="candidate in subCandidatesList" 
+              :key="candidate.name + candidate.swapDay + candidate.swapPeriod"
+              class="p-4 hover:bg-slate-50 transition flex flex-wrap items-center justify-between gap-4">
+              <div class="flex items-start gap-3">
+                <div class="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-base mt-0.5">
+                  <i class="fa-solid fa-rotate"></i>
+                </div>
+                <div>
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <span class="font-bold text-slate-800 text-sm">{{ candidate.name }} 老師</span>
+                    <span class="bg-indigo-100 text-indigo-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                      【{{ candidate.swapLesson.className }}】班級課程互調
+                    </span>
+                    <span class="bg-emerald-100 text-emerald-800 text-[10px] font-semibold px-2 py-0.5 rounded-full">
+                      <i class="fa-solid fa-check text-[9px] mr-1"></i>雙向課堂均為對方空堂
+                    </span>
+                  </div>
+                  
+                  <!-- 時段與空堂條件詳細說明 -->
+                  <div class="text-xs text-slate-600 mt-2 space-y-1.5 bg-slate-50 p-3 rounded-lg border border-slate-200/80">
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <span class="px-1.5 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-bold rounded">時段一 (您授課)</span>
+                      <span><strong>{{ subDay }} 第{{ subPeriod }}節</strong>：{{ subTeacher }} 老師上【{{ subCurrentTargetLesson?.className }} {{ subCurrentTargetLesson?.subject }}】</span>
+                      <span class="text-emerald-700 font-bold text-[11px] bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">➔ {{ candidate.name }} 老師該節全校空堂 🟢</span>
+                    </div>
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <span class="px-1.5 py-0.5 bg-indigo-100 text-indigo-800 text-[10px] font-bold rounded">時段二 (對方授課)</span>
+                      <span><strong>{{ candidate.swapDay }} 第{{ candidate.swapPeriod }}節</strong>：{{ candidate.name }} 老師上【{{ candidate.swapLesson.className }} {{ candidate.swapLesson.subject }}】</span>
+                      <span class="text-emerald-700 font-bold text-[11px] bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">➔ {{ subTeacher }} 老師該節全校空堂 🟢</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-2">
+                <button 
+                  @click="copyRequestText(candidate.name, 'swap', candidate)"
+                  class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1">
+                  <i class="fa-regular fa-copy text-indigo-600"></i> 複製請託訊息
+                </button>
+                <button 
+                  @click="prepareOfficialSlip(candidate.name, 'swap', candidate)"
+                  class="bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-1.5 rounded-lg text-xs font-medium transition shadow-sm flex items-center gap-1">
+                  <i class="fa-solid fa-file-circle-plus"></i> 產製調課單
+                </button>
+              </div>
+            </div>
+
+            <div v-if="subCandidatesList.length === 0" class="p-8 text-center text-slate-400 text-sm">
+              <i class="fa-solid fa-rotate text-2xl mb-2 text-slate-300"></i>
+              <p v-if="!subCurrentTargetLesson">請選擇原教師有排課的節次進行媒合。</p>
+              <p v-else>該班級【{{ subCurrentTargetLesson.className }}】其他任課教師於您授課時段無空堂，或您在對方授課時段已有排課。</p>
+            </div>
+          </div>
+
+          <!-- 調課模式列表 (限定同班級任課教師) -->
+          <div v-if="subMode === 'swap'" class="divide-y divide-slate-100">
+            <div 
+              v-for="candidate in subCandidatesList" 
+              :key="candidate.name + candidate.swapDay + candidate.swapPeriod"
+              class="p-4 hover:bg-slate-50 transition flex flex-wrap items-center justify-between gap-4">
+              <div class="flex items-start gap-3">
+                <div class="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-base mt-0.5">
+                  <i class="fa-solid fa-rotate"></i>
+                </div>
+                <div>
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <span class="font-bold text-slate-800 text-sm">{{ candidate.name }} 老師</span>
+                    <span class="bg-indigo-100 text-indigo-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                      【{{ candidate.swapLesson.className }}】同班級對調
+                    </span>
+                    <span class="bg-emerald-100 text-emerald-800 text-[10px] font-semibold px-2 py-0.5 rounded-full">
+                      <i class="fa-solid fa-check text-[9px] mr-1"></i>雙方皆為空堂可對調
+                    </span>
+                  </div>
+                  
+                  <!-- 時段與空堂條件說明 -->
+                  <div class="text-xs text-slate-600 mt-2 space-y-1 bg-slate-50 p-2.5 rounded-lg border border-slate-200/80">
+                    <div class="flex items-center gap-1.5">
+                      <span class="px-1.5 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-bold rounded">時段一</span>
+                      <span>您釋出 <strong>{{ subDay }} 第{{ subPeriod }}節</strong>（{{ subCurrentTargetLesson?.className }} 【{{ subCurrentTargetLesson?.subject }}】）</span>
+                      <span class="text-emerald-600 font-semibold text-[11px]">➔ {{ candidate.name }} 老師該節空堂 🟢</span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                      <span class="px-1.5 py-0.5 bg-indigo-100 text-indigo-800 text-[10px] font-bold rounded">時段二</span>
+                      <span>換對方釋出 <strong>{{ candidate.swapDay }} 第{{ candidate.swapPeriod }}節</strong>（{{ candidate.swapLesson.className }} 【{{ candidate.swapLesson.subject }}】）</span>
+                      <span class="text-emerald-600 font-semibold text-[11px]">➔ 您該節空堂 🟢</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-2">
+                <button 
+                  @click="copyRequestText(candidate.name, 'swap', candidate)"
+                  class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1">
+                  <i class="fa-regular fa-copy text-indigo-600"></i> 複製請託訊息
+                </button>
+                <button 
+                  @click="prepareOfficialSlip(candidate.name, 'swap', candidate)"
+                  class="bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-1.5 rounded-lg text-xs font-medium transition shadow-sm flex items-center gap-1">
+                  <i class="fa-solid fa-file-circle-plus"></i> 產製調課單
+                </button>
+              </div>
+            </div>
+
+            <div v-if="subCandidatesList.length === 0" class="p-8 text-center text-slate-400 text-sm">
+              <i class="fa-solid fa-rotate text-2xl mb-2 text-slate-300"></i>
+              <p v-if="!subCurrentTargetLesson">請選擇原教師有排課的節次進行媒合。</p>
+              <p v-else>該班級【{{ subCurrentTargetLesson.className }}】其他任課教師於該節無空堂，或您在對方課堂時段已有排課。</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 正式調代課單據 (產生後自動平滑捲動至此) -->
+        <div id="official-slip-card" v-if="activeSlipData" class="bg-white rounded-2xl p-6 shadow-md border-2 border-indigo-500/80 transition-all duration-300">
+          <div class="no-print flex justify-between items-center mb-4 pb-3 border-b border-slate-100">
+            <h4 class="font-bold text-slate-800 text-base flex items-center gap-2">
+              <i class="fa-solid fa-file-signature text-amber-600"></i> 已生成單據：佳林國中教師調代課申請單
+            </h4>
+            <div class="flex gap-2">
+              <button @click="printOfficialSlip" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold shadow transition flex items-center gap-1.5">
+                <i class="fa-solid fa-print"></i> 列印此申請單
+              </button>
+              <button @click="activeSlipData = null" class="bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs px-3 py-1.5 rounded-lg transition">
+                <i class="fa-solid fa-xmark"></i> 關閉預覽
+              </button>
+            </div>
+          </div>
+
+          <!-- 申請單列印格式 (純白底標準格式) -->
+          <div class="border-2 border-slate-900 p-6 rounded-lg text-slate-900 bg-white max-w-2xl mx-auto space-y-4 shadow-inner">
+            <div class="text-center space-y-1">
+              <h3 class="text-xl font-bold tracking-wider">新北市立佳林國民中學 教師調課代課申請單</h3>
+              <p class="text-xs text-slate-600">申請日期：2026 年 ____ 月 ____ 日</p>
+            </div>
+
+            <table class="w-full text-xs border-collapse border border-slate-900 text-center">
+              <tbody>
+                <tr>
+                  <td class="border border-slate-900 p-2 bg-slate-100 font-bold w-24">原授課教師</td>
+                  <td class="border border-slate-900 p-2 text-sm font-semibold">{{ activeSlipData.applicant }} 老師</td>
+                  <td class="border border-slate-900 p-2 bg-slate-100 font-bold w-24">擬調代教師</td>
+                  <td class="border border-slate-900 p-2 text-sm font-semibold">{{ activeSlipData.targetTeacher }} 老師</td>
+                </tr>
+                <tr>
+                  <td class="border border-slate-900 p-2 bg-slate-100 font-bold">調代類別</td>
+                  <td class="border border-slate-900 p-2 text-left px-4" colspan="3">
+                    <span class="font-bold text-indigo-900 text-sm">【{{ activeSlipData.type === 'sub' ? '代課' : '同班級對調' }}】</span>
+                    （請假事由：_______________________）
+                  </td>
+                </tr>
+                <tr v-if="activeSlipData.type === 'sub'">
+                  <td class="border border-slate-900 p-2 bg-slate-100 font-bold">代課時段</td>
+                  <td class="border border-slate-900 p-2 text-left px-4" colspan="3">
+                    <strong>{{ activeSlipData.day }}</strong> 第 <strong>{{ activeSlipData.period }}</strong> 節 
+                    （班級：<span class="underline font-bold">{{ activeSlipData.className }}</span> / 科目：<span class="underline font-bold">{{ activeSlipData.subject }}</span>）
+                  </td>
+                </tr>
+                <tr v-if="activeSlipData.type === 'swap'">
+                  <td class="border border-slate-900 p-2 bg-slate-100 font-bold">原課堂 (一)</td>
+                  <td class="border border-slate-900 p-2 text-left px-4" colspan="3">
+                    <strong>{{ activeSlipData.day }}</strong> 第 <strong>{{ activeSlipData.period }}</strong> 節 
+                    （{{ activeSlipData.className }} 【{{ activeSlipData.subject }}】）
+                  </td>
+                </tr>
+                <tr v-if="activeSlipData.type === 'swap'">
+                  <td class="border border-slate-900 p-2 bg-slate-100 font-bold">對調課堂 (二)</td>
+                  <td class="border border-slate-900 p-2 text-left px-4" colspan="3">
+                    <strong>{{ activeSlipData.swapDay }}</strong> 第 <strong>{{ activeSlipData.swapPeriod }}</strong> 節 
+                    （{{ activeSlipData.swapClassName }} 【{{ activeSlipData.swapSubject }}】）
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div class="grid grid-cols-3 gap-4 text-xs pt-8 text-center">
+              <div>
+                <p>申請人簽章：</p>
+                <p class="mt-8 font-bold">__________________</p>
+              </div>
+              <div>
+                <p>擬調代教師簽章：</p>
+                <p class="mt-8 font-bold">__________________</p>
+              </div>
+              <div>
+                <p>教務處/教學組審核：</p>
+                <p class="mt-8 font-bold">__________________</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </main>
+
+    <!-- 頁尾版權與備註 (列印時隱藏) -->
+    <footer class="no-print bg-slate-100 border-t border-slate-200 py-4 text-center text-xs text-slate-500 mt-auto">
+      <p>佳林國民中學 課程表彙整系統 • 全校 35 班資料庫解析 (含單雙週自動辨識與同班級調課媒合)</p>
+    </footer>
+
+  </div>
+
+  <!-- 內建課表資料與 Vue 程式邏輯 -->
+  <script>
+    const { createApp, ref, computed, nextTick } = Vue;
+
+    // 全校 35 個班級完整課表資料庫 (701~711, 801~810, 901~914)
+    const RAW_SCHEDULE_DATABASE = {
+      // ===== 七年級 (701 - 711) =====
+      "七年一班": {
+        "星期一": {1:{subject:"公民與社會",teacher:"張竹君"},2:{subject:"資訊科技",teacher:"陳文祥"},3:{subject:"家政",teacher:"吳雅琪"},4:{subject:"本土語",teacher:"沈淑嬿"},5:{subject:"國文",teacher:"徐嘉琦"},6:{subject:"健康教育",teacher:"張茹崴"},7:{subject:"數學",teacher:"汪家慧"}},
+        "星期二": {1:{subject:"體育",teacher:"簡煒倫"},2:{subject:"生物",teacher:"施易靈"},3:{subject:"達人你我他",teacher:"黎欣毓"},4:{subject:"國文",teacher:"徐嘉琦"},5:{subject:"佳英/擁生",teacher:"陳進雄/蔡佩穎"},6:{subject:"英語",teacher:"陳進雄"},7:{subject:"音樂",teacher:"陳俊吉"}},
+        "星期三": {1:{subject:"輔導",teacher:"李丞揚"},2:{subject:"視覺藝術",teacher:"黃偉茜"},3:{subject:"表演藝術",teacher:"陳筱婷"},4:{subject:"生物",teacher:"施易靈"},5:{subject:"數學",teacher:"汪家慧"},6:{subject:"童軍",teacher:"賴怡儒"},7:{subject:"國文",teacher:"徐嘉琦"}},
+        "星期四": {1:{subject:"數學",teacher:"汪家慧"},2:{subject:"國文",teacher:"徐嘉琦"},3:{subject:"生活科技",teacher:"張文憲"},4:{subject:"英語",teacher:"陳進雄"},5:{subject:"地理",teacher:"胡芷瑤"},6:{subject:"國文",teacher:"徐嘉琦"},7:{subject:"生物",teacher:"施易靈"}},
+        "星期五": {1:{subject:"歷史",teacher:"余信德"},2:{subject:"數學",teacher:"汪家慧"},3:{subject:"體育",teacher:"簡煒倫"},4:{subject:"英語",teacher:"陳進雄"},5:{subject:"班週會/社團",teacher:"徐嘉琦/謝欣祐"},6:{subject:"班週會/社團",teacher:"徐嘉琦/謝欣祐"},7:{subject:"得勝者/讀步佳林",teacher:"徐嘉琦"}}
+      },
+      "七年二班": {
+        "星期一": {1:{subject:"家政",teacher:"吳雅琪"},2:{subject:"體育",teacher:"簡煒倫"},3:{subject:"國文",teacher:"黃顯武"},4:{subject:"生物",teacher:"張俊明"},5:{subject:"視覺藝術",teacher:"黃偉茜"},6:{subject:"音樂",teacher:"陳俊吉"},7:{subject:"公民與社會",teacher:"張竹君"}},
+        "星期二": {1:{subject:"數學",teacher:"徐培真"},2:{subject:"輔導",teacher:"李丞揚"},3:{subject:"佳英/擁生",teacher:"廖玲玲/蔡佩穎"},4:{subject:"本土語",teacher:"沈淑嬿"},5:{subject:"健康教育",teacher:"張茹崴"},6:{subject:"國文",teacher:"黃顯武"},7:{subject:"英語",teacher:"廖玲玲"}},
+        "星期三": {1:{subject:"數學",teacher:"徐培真"},2:{subject:"英語",teacher:"廖玲玲"},3:{subject:"達人你我他",teacher:"黎欣毓"},4:{subject:"表演藝術",teacher:"陳筱婷"},5:{subject:"國文",teacher:"黃顯武"},6:{subject:"國文",teacher:"黃顯武"},7:{subject:"童軍",teacher:"賴怡儒"}},
+        "星期四": {1:{subject:"數學",teacher:"徐培真"},2:{subject:"地理",teacher:"胡芷瑤"},3:{subject:"數學",teacher:"徐培真"},4:{subject:"資訊科技",teacher:"張俊明"},5:{subject:"生活科技",teacher:"張文憲"},6:{subject:"生物",teacher:"張俊明"},7:{subject:"體育",teacher:"簡煒倫"}},
+        "星期五": {1:{subject:"生物",teacher:"張俊明"},2:{subject:"歷史",teacher:"余信德"},3:{subject:"英語",teacher:"廖玲玲"},4:{subject:"國文",teacher:"黃顯武"},5:{subject:"班週會/社團",teacher:"吳雅琪/鄭雅文"},6:{subject:"班週會/社團",teacher:"吳雅琪/鄭雅文"},7:{subject:"讀步佳林/得勝者",teacher:"黃顯武/吳雅琪"}}
+      },
+      "七年三班": {
+        "星期一": {1:{subject:"數學",teacher:"謝蕙璟"},2:{subject:"本土語",teacher:"沈淑嬿"},3:{subject:"英語",teacher:"許毓如"},4:{subject:"輔導",teacher:"李丞揚"},5:{subject:"生活科技",teacher:"張文憲"},6:{subject:"國文",teacher:"黃崇泰"},7:{subject:"地理",teacher:"胡芷瑤"}},
+        "星期二": {1:{subject:"資訊科技",teacher:"陳文祥"},2:{subject:"公民與社會",teacher:"張竹君"},3:{subject:"國文",teacher:"黃崇泰"},4:{subject:"數學",teacher:"謝蕙璟"},5:{subject:"體育",teacher:"簡煒倫"},6:{subject:"音樂",teacher:"陳俊吉"},7:{subject:"表演藝術",teacher:"胡甄玲"}},
+        "星期三": {1:{subject:"生物",teacher:"歐映青"},2:{subject:"國文",teacher:"黃崇泰"},3:{subject:"英語",teacher:"許毓如"},4:{subject:"歷史",teacher:"黃崇泰"},5:{subject:"達人你我他",teacher:"黎欣毓"},6:{subject:"健康教育",teacher:"張茹崴"},7:{subject:"數學",teacher:"謝蕙璟"}},
+        "星期四": {1:{subject:"生物",teacher:"歐映青"},2:{subject:"視覺藝術",teacher:"黃偉茜"},3:{subject:"體育",teacher:"簡煒倫"},4:{subject:"數學",teacher:"謝蕙璟"},5:{subject:"班週會/社團",teacher:"許毓如/陳進雄"},6:{subject:"班週會/社團",teacher:"許毓如/陳進雄"},7:{subject:"佳英/擁生",teacher:"許毓如/蔡佩穎"}},
+        "星期五": {1:{subject:"英語",teacher:"許毓如"},2:{subject:"童軍",teacher:"賴怡儒"},3:{subject:"生物",teacher:"歐映青"},4:{subject:"國文",teacher:"黃崇泰"},5:{subject:"家政",teacher:"吳雅琪"},6:{subject:"國文",teacher:"黃崇泰"},7:{subject:"得勝者/讀步佳林",teacher:"許毓如/黃崇泰"}}
+      },
+      "七年四班": {
+        "星期一": {1:{subject:"本土語",teacher:"沈淑嬿"},2:{subject:"生物",teacher:"郭立研"},3:{subject:"視覺藝術",teacher:"黃偉茜"},4:{subject:"國文",teacher:"陳素貞"},5:{subject:"體育",teacher:"簡煒倫"},6:{subject:"國文",teacher:"陳素貞"},7:{subject:"數學",teacher:"謝蕙璟"}},
+        "星期二": {1:{subject:"英語",teacher:"廖玲玲"},2:{subject:"數學",teacher:"謝蕙璟"},3:{subject:"生物",teacher:"郭立研"},4:{subject:"擁生/佳英",teacher:"蔡佩穎/廖玲玲"},5:{subject:"歷史",teacher:"余信德"},6:{subject:"家政",teacher:"吳雅琪"},7:{subject:"數學",teacher:"謝蕙璟"}},
+        "星期三": {1:{subject:"英語",teacher:"廖玲玲"},2:{subject:"童軍",teacher:"黃世昌"},3:{subject:"地理",teacher:"胡芷瑤"},4:{subject:"達人你我他",teacher:"黎欣毓"},5:{subject:"輔導",teacher:"李丞揚"},6:{subject:"國文",teacher:"陳素貞"},7:{subject:"生活科技",teacher:"張文憲"}},
+        "星期四": {1:{subject:"生物",teacher:"郭立研"},2:{subject:"健康教育",teacher:"張茹崴"},3:{subject:"英語",teacher:"廖玲玲"},4:{subject:"體育",teacher:"簡煒倫"},5:{subject:"音樂",teacher:"陳俊吉"},6:{subject:"表演藝術",teacher:"胡甄玲"},7:{subject:"國文",teacher:"陳素貞"}},
+        "星期五": {1:{subject:"資訊科技",teacher:"陳文祥"},2:{subject:"公民與社會",teacher:"張竹君"},3:{subject:"數學",teacher:"謝蕙璟"},4:{subject:"國文",teacher:"陳素貞"},5:{subject:"班週會/社團",teacher:"胡甄玲/林益帆"},6:{subject:"班週會/社團",teacher:"胡甄玲/林益帆"},7:{subject:"讀步佳林/得勝者",teacher:"陳素貞/胡甄玲"}}
+      },
+      "七年五班": {
+        "星期一": {1:{subject:"童軍",teacher:"賴淑霜"},2:{subject:"視覺藝術",teacher:"黃偉茜"},3:{subject:"體育",teacher:"簡煒倫"},4:{subject:"本土語",teacher:"陳俊吉"},5:{subject:"輔導",teacher:"李丞揚"},6:{subject:"數學",teacher:"汪家慧"},7:{subject:"國文",teacher:"黃顯武"}},
+        "星期二": {1:{subject:"英語",teacher:"周盈君"},2:{subject:"擁生/佳英",teacher:"蔡佩穎/周盈君"},3:{subject:"表演藝術",teacher:"胡甄玲"},4:{subject:"生物",teacher:"施易靈"},5:{subject:"國文",teacher:"黃顯武"},6:{subject:"達人你我他",teacher:"黎欣毓"},7:{subject:"數學",teacher:"汪家慧"}},
+        "星期三": {1:{subject:"英語",teacher:"周盈君"},2:{subject:"數學",teacher:"汪家慧"},3:{subject:"國文",teacher:"黃顯武"},4:{subject:"國文",teacher:"黃顯武"},5:{subject:"體育",teacher:"簡煒倫"},6:{subject:"生物",teacher:"施易靈"},7:{subject:"健康教育",teacher:"王薪琇"}},
+        "星期四": {1:{subject:"音樂",teacher:"陳俊吉"},2:{subject:"資訊科技",teacher:"陳文祥"},3:{subject:"英語",teacher:"周盈君"},4:{subject:"生物",teacher:"施易靈"},5:{subject:"歷史",teacher:"黃崇泰"},6:{subject:"生活科技",teacher:"張文憲"},7:{subject:"地理",teacher:"胡芷瑤"}},
+        "星期五": {1:{subject:"國文",teacher:"黃顯武"},2:{subject:"家政",teacher:"吳雅琪"},3:{subject:"數學",teacher:"汪家慧"},4:{subject:"公民與社會",teacher:"張竹君"},5:{subject:"班週會/社團",teacher:"陳俊吉/江濤"},6:{subject:"班週會/社團",teacher:"陳俊吉/江濤"},7:{subject:"得勝者/讀步佳林",teacher:"陳俊吉/黃顯武"}}
+      },
+      "七年六班": {
+        "星期一": {1:{subject:"國文",teacher:"黃崇泰"},2:{subject:"表演藝術",teacher:"陳筱婷"},3:{subject:"英語",teacher:"洪郁芬"},4:{subject:"數學",teacher:"謝蕙璟"},5:{subject:"童軍",teacher:"賴淑霜"},6:{subject:"公民與社會",teacher:"張竹君"},7:{subject:"本土語",teacher:"陳俊吉"}},
+        "星期二": {1:{subject:"數學",teacher:"謝蕙璟"},2:{subject:"生活科技",teacher:"張文憲"},3:{subject:"生物",teacher:"施易靈"},4:{subject:"歷史",teacher:"黃崇泰"},5:{subject:"視覺藝術",teacher:"黃偉茜"},6:{subject:"體育",teacher:"王薪琇"},7:{subject:"健康教育",teacher:"王薪琇"}},
+        "星期三": {1:{subject:"國文",teacher:"黃崇泰"},2:{subject:"音樂",teacher:"陳俊吉"},3:{subject:"英語",teacher:"洪郁芬"},4:{subject:"數學",teacher:"謝蕙璟"},5:{subject:"生物",teacher:"施易靈"},6:{subject:"家政",teacher:"吳雅琪"},7:{subject:"輔導",teacher:"李丞揚"}},
+        "星期四": {1:{subject:"擁生/佳英",teacher:"蔡佩穎/洪郁芬"},2:{subject:"達人你我他",teacher:"黎欣毓"},3:{subject:"數學",teacher:"謝蕙璟"},4:{subject:"國文",teacher:"黃崇泰"},5:{subject:"班週會/社團",teacher:"黃偉茜/黃世昌"},6:{subject:"班週會/社團",teacher:"黃偉茜/黃世昌"},7:{subject:"讀步佳林/得勝者",teacher:"黃崇泰/黃偉茜"}},
+        "星期五": {1:{subject:"英語",teacher:"洪郁芬"},2:{subject:"國文",teacher:"黃崇泰"},3:{subject:"國文",teacher:"黃崇泰"},4:{subject:"地理",teacher:"胡芷瑤"},5:{subject:"體育",teacher:"王薪琇"},6:{subject:"生物",teacher:"施易靈"},7:{subject:"資訊科技",teacher:"林志遠"}}
+      },
+      "七年七班": {
+        "星期一": {1:{subject:"生活科技",teacher:"張文憲"},2:{subject:"公民與社會",teacher:"張竹君"},3:{subject:"英語",teacher:"黃國桓"},4:{subject:"數學",teacher:"林宛姍"},5:{subject:"生物",teacher:"郭立研"},6:{subject:"童軍",teacher:"賴淑霜"},7:{subject:"國文",teacher:"陳素貞"}},
+        "星期二": {1:{subject:"家政",teacher:"吳雅琪"},2:{subject:"佳英/擁生",teacher:"黃國桓/蔡佩穎"},3:{subject:"體育",teacher:"連宇杰"},4:{subject:"數學",teacher:"林宛姍"},5:{subject:"數學",teacher:"林宛姍"},6:{subject:"表演藝術",teacher:"陳筱婷"},7:{subject:"視覺藝術",teacher:"黃偉茜"}},
+        "星期三": {1:{subject:"國文",teacher:"陳素貞"},2:{subject:"地理",teacher:"胡芷瑤"},3:{subject:"英語",teacher:"黃國桓"},4:{subject:"音樂",teacher:"陳俊吉"},5:{subject:"生物",teacher:"郭立研"},6:{subject:"達人你我他",teacher:"黎欣毓"},7:{subject:"歷史",teacher:"黃崇泰"}},
+        "星期四": {1:{subject:"資訊科技",teacher:"林志遠"},2:{subject:"數學",teacher:"林宛姍"},3:{subject:"本土語",teacher:"陳俊吉"},4:{subject:"健康教育",teacher:"王薪琇"},5:{subject:"國文",teacher:"陳素貞"},6:{subject:"國文",teacher:"陳素貞"},7:{subject:"生物",teacher:"郭立研"}},
+        "星期五": {1:{subject:"英語",teacher:"黃國桓"},2:{subject:"輔導",teacher:"李丞揚"},3:{subject:"國文",teacher:"陳素貞"},4:{subject:"體育",teacher:"連宇杰"},5:{subject:"班週會/社團",teacher:"黃國桓/林志遠"},6:{subject:"班週會/社團",teacher:"黃國桓/林志遠"},7:{subject:"得勝者/讀步佳林",teacher:"黃國桓/陳素貞"}}
+      },
+      "七年八班": {
+        "星期一": {1:{subject:"資訊科技",teacher:"張俊明"},2:{subject:"國文",teacher:"陳素貞"},3:{subject:"輔導",teacher:"李丞揚"},4:{subject:"歷史",teacher:"黃崇泰"},5:{subject:"本土語",teacher:"沈淑嬿"},6:{subject:"健康教育",teacher:"王薪琇"},7:{subject:"童軍",teacher:"賴淑霜"}},
+        "星期二": {1:{subject:"英語",teacher:"洪郁芬"},2:{subject:"體育",teacher:"連宇杰"},3:{subject:"視覺藝術",teacher:"黃偉茜"},4:{subject:"達人你我他",teacher:"黎欣毓"},5:{subject:"公民與社會",teacher:"張竹君"},6:{subject:"數學",teacher:"林宛姍"},7:{subject:"數學",teacher:"林宛姍"}},
+        "星期三": {1:{subject:"英語",teacher:"洪郁芬"},2:{subject:"數學",teacher:"林宛姍"},3:{subject:"音樂",teacher:"陳俊吉"},4:{subject:"國文",teacher:"陳素貞"},5:{subject:"生物",teacher:"張俊明"},6:{subject:"地理",teacher:"胡芷瑤"},7:{subject:"國文",teacher:"陳素貞"}},
+        "星期四": {1:{subject:"佳英/讀步佳林",teacher:"洪郁芬/陳素貞"},2:{subject:"生活科技",teacher:"張文憲"},3:{subject:"英語",teacher:"洪郁芬"},4:{subject:"生物",teacher:"張俊明"},5:{subject:"表演藝術",teacher:"陳筱婷"},6:{subject:"家政",teacher:"吳雅琪"},7:{subject:"擁生/得勝者",teacher:"蔡佩穎/洪郁芬"}},
+        "星期五": {1:{subject:"國文",teacher:"陳素貞"},2:{subject:"數學",teacher:"林宛姍"},3:{subject:"國文",teacher:"陳素貞"},4:{subject:"體育",teacher:"連宇杰"},5:{subject:"班週會/社團",teacher:"洪郁芬/曾志剛"},6:{subject:"班週會/社團",teacher:"洪郁芬/曾志剛"},7:{subject:"生物",teacher:"張俊明"}}
+      },
+      "七年九班": {
+        "星期一": {1:{subject:"佳英/讀步佳林",teacher:"廖玲玲/黃顯武"},2:{subject:"數學",teacher:"林宛姍"},3:{subject:"童軍",teacher:"賴淑霜"},4:{subject:"歷史",teacher:"余信德"},5:{subject:"國文",teacher:"黃顯武"},6:{subject:"達人你我他",teacher:"黎欣毓"},7:{subject:"輔導",teacher:"李丞揚"}},
+        "星期二": {1:{subject:"健康教育",teacher:"王薪琇"},2:{subject:"音樂",teacher:"陳俊吉"},3:{subject:"地理",teacher:"胡芷瑤"},4:{subject:"資訊科技",teacher:"林志遠"},5:{subject:"體育",teacher:"連宇杰"},6:{subject:"英語",teacher:"廖玲玲"},7:{subject:"公民與社會",teacher:"張竹君"}},
+        "星期三": {1:{subject:"國文",teacher:"黃顯武"},2:{subject:"生物",teacher:"歐映青"},3:{subject:"國文",teacher:"黃顯武"},4:{subject:"國文",teacher:"黃顯武"},5:{subject:"數學",teacher:"林宛姍"},6:{subject:"生活科技",teacher:"張文憲"},7:{subject:"家政",teacher:"吳雅琪"}},
+        "星期四": {1:{subject:"數學",teacher:"林宛姍"},2:{subject:"體育",teacher:"連宇杰"},3:{subject:"本土語",teacher:"沈淑嬿"},4:{subject:"英語",teacher:"廖玲玲"},5:{subject:"表演藝術",teacher:"陳筱婷"},6:{subject:"視覺藝術",teacher:"黃偉茜"},7:{subject:"生物",teacher:"歐映青"}},
+        "星期五": {1:{subject:"生物",teacher:"歐映青"},2:{subject:"數學",teacher:"林宛姍"},3:{subject:"國文",teacher:"黃顯武"},4:{subject:"英語",teacher:"廖玲玲"},5:{subject:"班週會/社團",teacher:"廖玲玲/張凱喆"},6:{subject:"班週會/社團",teacher:"廖玲玲/張凱喆"},7:{subject:"得勝者/擁生佳林",teacher:"廖玲玲/蔡佩穎"}}
+      },
+      "七年十班": {
+        "星期一": {1:{subject:"歷史",teacher:"余信德"},2:{subject:"童軍",teacher:"賴淑霜"},3:{subject:"數學",teacher:"徐培真"},4:{subject:"英語",teacher:"陳進雄"},5:{subject:"表演藝術",teacher:"陳筱婷"},6:{subject:"國文",teacher:"徐嘉琦"},7:{subject:"家政",teacher:"吳雅琪"}},
+        "星期二": {1:{subject:"讀步/地理",teacher:"徐嘉琦/胡芷瑤"},2:{subject:"資訊科技",teacher:"林志遠"},3:{subject:"數學",teacher:"徐培真"},4:{subject:"公民與社會",teacher:"張竹君"},5:{subject:"擁生/佳英",teacher:"蔡佩穎/陳進雄"},6:{subject:"本土語",teacher:"沈淑嬿"},7:{subject:"數學",teacher:"徐培真"}},
+        "星期三": {1:{subject:"體育",teacher:"連宇杰"},2:{subject:"輔導",teacher:"李丞揚"},3:{subject:"國文",teacher:"徐嘉琦"},4:{subject:"英語",teacher:"陳進雄"},5:{subject:"健康教育",teacher:"王薪琇"},6:{subject:"國文",teacher:"徐嘉琦"},7:{subject:"生物",teacher:"郭立研"}},
+        "星期四": {1:{subject:"視覺藝術",teacher:"黃偉茜"},2:{subject:"英語",teacher:"陳進雄"},3:{subject:"體育",teacher:"連宇杰"},4:{subject:"達人你我他",teacher:"黎欣毓"},5:{subject:"國文",teacher:"徐嘉琦"},6:{subject:"音樂",teacher:"陳俊吉"},7:{subject:"生活科技",teacher:"張文憲"}},
+        "星期五": {1:{subject:"數學",teacher:"徐培真"},2:{subject:"生物",teacher:"郭立研"},3:{subject:"國文",teacher:"徐嘉琦"},4:{subject:"生物",teacher:"郭立研"},5:{subject:"班週會/社團",teacher:"陳筱婷/張雅淳"},6:{subject:"班週會/社團",teacher:"陳筱婷/張雅淳"},7:{subject:"地理/得勝者",teacher:"胡芷瑤/陳筱婷"}}
+      },
+      "七年十一班": {
+        "星期一": {1:{subject:"國文",teacher:"鄭雅文"},2:{subject:"國文",teacher:"鄭雅文"},3:{subject:"數學",teacher:"謝蕙璟"},4:{subject:"英語",teacher:"周盈君"},5:{subject:"達人你我他",teacher:"黎欣毓"},6:{subject:"體育專業",teacher:"連宇杰/黃昀樺"},7:{subject:"體育專業",teacher:"連宇杰/黃昀樺"}},
+        "星期二": {1:{subject:"公民與社會",teacher:"張竹君"},2:{subject:"地理",teacher:"胡芷瑤"},3:{subject:"體育",teacher:"柯閎仁"},4:{subject:"國文",teacher:"鄭雅文"},5:{subject:"數學",teacher:"謝蕙璟"},6:{subject:"體育專業",teacher:"連宇杰/黃昀樺"},7:{subject:"專項訓練",teacher:"連宇杰/黃昀樺"}},
+        "星期三": {1:{subject:"視覺藝術",teacher:"黃偉茜"},2:{subject:"生物",teacher:"郭立研"},3:{subject:"數學",teacher:"謝蕙璟"},4:{subject:"英語",teacher:"周盈君"},5:{subject:"國文",teacher:"鄭雅文"},6:{subject:"體育專業",teacher:"連宇杰/黃昀樺"},7:{subject:"專項訓練",teacher:"連宇杰/黃昀樺"}},
+        "星期四": {1:{subject:"歷史",teacher:"黃崇泰"},2:{subject:"英語",teacher:"周盈君"},3:{subject:"生物",teacher:"郭立研"},4:{subject:"本土語",teacher:"沈淑嬿"},5:{subject:"資訊科技",teacher:"林志遠"},6:{subject:"童軍",teacher:"黃世昌"},7:{subject:"健康教育",teacher:"王薪琇"}},
+        "星期五": {1:{subject:"數學",teacher:"謝蕙璟"},2:{subject:"音樂",teacher:"陳俊吉"},3:{subject:"生物",teacher:"郭立研"},4:{subject:"國文",teacher:"鄭雅文"},5:{subject:"家政",teacher:"周盈君"},6:{subject:"體育專業",teacher:"連宇杰/黃昀樺"},7:{subject:"專項訓練",teacher:"連宇杰/黃昀樺"}}
+      },
+
+      // ===== 八年級 (801 - 810) =====
+      "八年一班": {
+        "星期一": {1:{subject:"公民與社會",teacher:"蕭安婷"},2:{subject:"數學",teacher:"徐詩媛"},3:{subject:"歷史",teacher:"張少瑄"},4:{subject:"地理",teacher:"徐煜傑"},5:{subject:"體育",teacher:"連宇杰"},6:{subject:"國文",teacher:"楊子葳"},7:{subject:"健康教育",teacher:"張茹崴"}},
+        "星期二": {1:{subject:"國文",teacher:"楊子葳"},2:{subject:"國文",teacher:"楊子葳"},3:{subject:"英語",teacher:"謝欣祐"},4:{subject:"表演藝術",teacher:"胡甄玲"},5:{subject:"見招拆招",teacher:"徐詩媛"},6:{subject:"數學",teacher:"徐詩媛"},7:{subject:"輔導",teacher:"劉珈君"}},
+        "星期三": {1:{subject:"資訊科技",teacher:"陳文祥"},2:{subject:"家政",teacher:"康杏鎂"},3:{subject:"理化",teacher:"余忠勳"},4:{subject:"國文",teacher:"楊子葳"},5:{subject:"數學",teacher:"徐詩媛"},6:{subject:"英語",teacher:"謝欣祐"},7:{subject:"佳英/生命",teacher:"謝欣祐/謝芳倩"}},
+        "星期四": {1:{subject:"體育",teacher:"連宇杰"},2:{subject:"本土語",teacher:"沈淑嬿"},3:{subject:"英語",teacher:"謝欣祐"},4:{subject:"視覺藝術",teacher:"黃偉茜"},5:{subject:"國文",teacher:"楊子葳"},6:{subject:"理化",teacher:"余忠勳"},7:{subject:"童軍",teacher:"賴怡儒"}},
+        "星期五": {1:{subject:"生活科技",teacher:"張文憲"},2:{subject:"數學",teacher:"徐詩媛"},3:{subject:"音樂",teacher:"李文心"},4:{subject:"理化",teacher:"余忠勳"},5:{subject:"班週會/社團",teacher:"徐詩媛/陳珊珊"},6:{subject:"班週會/社團",teacher:"徐詩媛/陳珊珊"},7:{subject:"卓越佳人/讀步佳林",teacher:"徐詩媛/楊子葳"}}
+      },
+      "八年二班": {
+        "星期一": {1:{subject:"國文",teacher:"楊子葳"},2:{subject:"國文",teacher:"楊子葳"},3:{subject:"資訊科技",teacher:"陳文祥"},4:{subject:"公民與社會",teacher:"蕭安婷"},5:{subject:"數學",teacher:"徐培真"},6:{subject:"理化",teacher:"余忠勳"},7:{subject:"童軍",teacher:"賴怡儒"}},
+        "星期二": {1:{subject:"本土語",teacher:"沈淑嬿"},2:{subject:"健康教育",teacher:"張茹崴"},3:{subject:"英語",teacher:"許毓如"},4:{subject:"體育",teacher:"林智翔"},5:{subject:"見招拆招",teacher:"徐培真"},6:{subject:"數學",teacher:"徐培真"},7:{subject:"音樂",teacher:"李文心"}},
+        "星期三": {1:{subject:"表演藝術",teacher:"胡甄玲"},2:{subject:"佳英/生命",teacher:"許毓如/謝芳倩"},3:{subject:"歷史",teacher:"張少瑄"},4:{subject:"輔導",teacher:"劉珈君"},5:{subject:"數學",teacher:"徐培真"},6:{subject:"英語",teacher:"許毓如"},7:{subject:"國文",teacher:"楊子葳"}},
+        "星期四": {1:{subject:"生活科技",teacher:"張文憲"},2:{subject:"數學",teacher:"徐培真"},3:{subject:"英語",teacher:"許毓如"},4:{subject:"國文",teacher:"楊子葳"},5:{subject:"理化",teacher:"余忠勳"},6:{subject:"家政",teacher:"康杏鎂"},7:{subject:"視覺藝術",teacher:"黃偉茜"}},
+        "星期五": {1:{subject:"體育",teacher:"林智翔"},2:{subject:"地理",teacher:"徐煜傑"},3:{subject:"理化",teacher:"余忠勳"},4:{subject:"國文",teacher:"楊子葳"},5:{subject:"班週會/社團",teacher:"張少瑄/歐陽群"},6:{subject:"班週會/社團",teacher:"張少瑄/歐陽群"},7:{subject:"讀步佳林/卓越佳人",teacher:"楊子葳/張少瑄"}}
+      },
+      "八年三班": {
+        "星期一": {1:{subject:"英語",teacher:"謝欣祐"},2:{subject:"表演藝術",teacher:"胡甄玲"},3:{subject:"國文",teacher:"嚴雅瀞"},4:{subject:"體育",teacher:"林智翔"},5:{subject:"國文",teacher:"嚴雅瀞"},6:{subject:"公民與社會",teacher:"蕭安婷"},7:{subject:"視覺藝術",teacher:"齊家榕"}},
+        "星期二": {1:{subject:"童軍",teacher:"賴怡儒"},2:{subject:"本土語",teacher:"沈淑嬿"},3:{subject:"數學",teacher:"陳子平"},4:{subject:"理化",teacher:"白宛玉"},5:{subject:"輔導",teacher:"劉珈君"},6:{subject:"歷史",teacher:"張少瑄"},7:{subject:"見招拆招",teacher:"陳子平"}},
+        "星期三": {1:{subject:"國文",teacher:"嚴雅瀞"},2:{subject:"英語",teacher:"謝欣祐"},3:{subject:"生活科技",teacher:"張文憲"},4:{subject:"音樂",teacher:"李文心"},5:{subject:"體育",teacher:"林智翔"},6:{subject:"數學",teacher:"陳子平"},7:{subject:"生命/佳英",teacher:"謝芳倩/謝欣祐"}},
+        "星期四": {1:{subject:"理化",teacher:"白宛玉"},2:{subject:"數學",teacher:"陳子平"},3:{subject:"健康教育",teacher:"張茹崴"},4:{subject:"資訊科技",teacher:"陳文祥"},5:{subject:"地理",teacher:"徐煜傑"},6:{subject:"國文",teacher:"嚴雅瀞"},7:{subject:"家政",teacher:"康杏鎂"}},
+        "星期五": {1:{subject:"數學",teacher:"陳子平"},2:{subject:"理化",teacher:"白宛玉"},3:{subject:"英語",teacher:"謝欣祐"},4:{subject:"國文",teacher:"嚴雅瀞"},5:{subject:"班週會/社團",teacher:"張茹崴/余映慧"},6:{subject:"班週會/社團",teacher:"張茹崴/余映慧"},7:{subject:"卓越佳人/讀步佳林",teacher:"張茹崴/嚴雅瀞"}}
+      },
+      "八年四班": {
+        "星期一": {1:{subject:"歷史",teacher:"張少瑄"},2:{subject:"英語",teacher:"謝欣祐"},3:{subject:"表演藝術",teacher:"胡甄玲"},4:{subject:"體育",teacher:"王韋恩"},5:{subject:"數學",teacher:"謝蕙璟"},6:{subject:"國文",teacher:"楊育瑄"},7:{subject:"國文",teacher:"楊育瑄"}},
+        "星期二": {1:{subject:"地理",teacher:"徐煜傑"},2:{subject:"英語",teacher:"謝欣祐"},3:{subject:"國文",teacher:"楊育瑄"},4:{subject:"家政",teacher:"康杏鎂"},5:{subject:"音樂",teacher:"李文心"},6:{subject:"數學",teacher:"謝蕙璟"},7:{subject:"視覺藝術",teacher:"齊家榕"}},
+        "星期三": {1:{subject:"國文",teacher:"楊育瑄"},2:{subject:"理化",teacher:"白宛玉"},3:{subject:"童軍",teacher:"賴怡儒"},4:{subject:"生命/佳英",teacher:"謝芳倩/謝欣祐"},5:{subject:"數學",teacher:"謝蕙璟"},6:{subject:"體育",teacher:"王韋恩"},7:{subject:"輔導",teacher:"劉珈君"}},
+        "星期四": {1:{subject:"本土語",teacher:"沈淑嬿"},2:{subject:"公民與社會",teacher:"蕭安婷"},3:{subject:"見招拆招",teacher:"謝蕙璟"},4:{subject:"理化",teacher:"白宛玉"},5:{subject:"英語",teacher:"謝欣祐"},6:{subject:"國文",teacher:"楊育瑄"},7:{subject:"健康教育",teacher:"張茹崴"}},
+        "星期五": {1:{subject:"理化",teacher:"白宛玉"},2:{subject:"數學",teacher:"謝蕙璟"},3:{subject:"資訊科技",teacher:"陳文祥"},4:{subject:"生活科技",teacher:"張文憲"},5:{subject:"班週會/社團",teacher:"楊育瑄/劉芯妮"},6:{subject:"班週會/社團",teacher:"楊育瑄/劉芯妮"},7:{subject:"讀步佳林/卓越佳人",teacher:"楊育瑄/楊育瑄"}}
+      },
+      "八年五班": {
+        "星期一": {1:{subject:"國文",teacher:"嚴雅瀞"},2:{subject:"英語",teacher:"許毓如"},3:{subject:"本土語",teacher:"沈淑嬿"},4:{subject:"音樂",teacher:"李文心"},5:{subject:"地理",teacher:"徐煜傑"},6:{subject:"體育",teacher:"王韋恩"},7:{subject:"數學",teacher:"徐詩媛"}},
+        "星期二": {1:{subject:"數學",teacher:"徐詩媛"},2:{subject:"英語",teacher:"許毓如"},3:{subject:"理化",teacher:"白宛玉"},4:{subject:"國文",teacher:"嚴雅瀞"},5:{subject:"童軍",teacher:"賴怡儒"},6:{subject:"輔導",teacher:"劉珈君"},7:{subject:"見招拆招",teacher:"徐詩媛"}},
+        "星期三": {1:{subject:"數學",teacher:"徐詩媛"},2:{subject:"生活科技",teacher:"張文憲"},3:{subject:"家政",teacher:"康杏鎂"},4:{subject:"理化",teacher:"白宛玉"},5:{subject:"國文",teacher:"嚴雅瀞"},6:{subject:"國文",teacher:"嚴雅瀞"},7:{subject:"體育",teacher:"王韋恩"}},
+        "星期四": {1:{subject:"資訊科技",teacher:"陳文祥"},2:{subject:"理化",teacher:"白宛玉"},3:{subject:"國文",teacher:"嚴雅瀞"},4:{subject:"表演藝術",teacher:"胡甄玲"},5:{subject:"英語",teacher:"許毓如"},6:{subject:"歷史",teacher:"江濤"},7:{subject:"讀步佳林/佳英",teacher:"嚴雅瀞/許毓如"}},
+        "星期五": {1:{subject:"公民與社會",teacher:"蕭安婷"},2:{subject:"視覺藝術",teacher:"齊家榕"},3:{subject:"健康教育",teacher:"張茹崴"},4:{subject:"數學",teacher:"徐詩媛"},5:{subject:"班週會/社團",teacher:"賴怡儒/闕雅妮"},6:{subject:"班週會/社團",teacher:"賴怡儒/闕雅妮"},7:{subject:"卓越佳人/生命",teacher:"賴怡儒/賴怡儒"}}
+      },
+      "八年六班": {
+        "星期一": {1:{subject:"健康教育",teacher:"張茹崴"},2:{subject:"數學",teacher:"徐培真"},3:{subject:"佳英/生命",teacher:"謝欣祐/陳香螢"},4:{subject:"童軍",teacher:"賴怡儒"},5:{subject:"國文",teacher:"楊子葳"},6:{subject:"見招拆招",teacher:"徐培真"},7:{subject:"歷史",teacher:"江濤"}},
+        "星期二": {1:{subject:"英語",teacher:"謝欣祐"},2:{subject:"數學",teacher:"徐培真"},3:{subject:"輔導",teacher:"劉珈君"},4:{subject:"國文",teacher:"楊子葳"},5:{subject:"本土語",teacher:"沈淑嬿"},6:{subject:"表演藝術",teacher:"胡甄玲"},7:{subject:"體育",teacher:"王韋恩"}},
+        "星期三": {1:{subject:"英語",teacher:"謝欣祐"},2:{subject:"資訊科技",teacher:"陳文祥"},3:{subject:"國文",teacher:"楊子葳"},4:{subject:"生活科技",teacher:"張文憲"},5:{subject:"理化",teacher:"李昌隆"},6:{subject:"讀步佳林/家政",teacher:"楊子葳/康杏鎂"},7:{subject:"數學",teacher:"徐培真"}},
+        "星期四": {1:{subject:"公民與社會",teacher:"蕭安婷"},2:{subject:"理化",teacher:"李昌隆"},3:{subject:"體育",teacher:"王韋恩"},4:{subject:"英語",teacher:"謝欣祐"},5:{subject:"班週會/社團",teacher:"陳文祥/張熒丹"},6:{subject:"班週會/社團",teacher:"陳文祥/張熒丹"},7:{subject:"家政/卓越佳人",teacher:"康杏鎂/陳文祥"}},
+        "星期五": {1:{subject:"音樂",teacher:"李文心"},2:{subject:"國文",teacher:"楊子葳"},3:{subject:"國文",teacher:"楊子葳"},4:{subject:"地理",teacher:"徐煜傑"},5:{subject:"數學",teacher:"徐培真"},6:{subject:"視覺藝術",teacher:"齊家榕"},7:{subject:"理化",teacher:"李昌隆"}}
+      },
+      "八年七班": {
+        "星期一": {1:{subject:"國文",teacher:"張之璿"},2:{subject:"家政",teacher:"康杏鎂"},3:{subject:"生命/佳英",teacher:"陳香螢/謝欣祐"},4:{subject:"健康教育",teacher:"張茹崴"},5:{subject:"歷史",teacher:"江濤"},6:{subject:"本土語",teacher:"沈淑嬿"},7:{subject:"資訊科技",teacher:"陳文祥"}},
+        "星期二": {1:{subject:"體育",teacher:"柯閎仁"},2:{subject:"國文",teacher:"張之璿"},3:{subject:"數學",teacher:"徐培真"},4:{subject:"理化",teacher:"李昌隆"},5:{subject:"視覺藝術",teacher:"齊家榕"},6:{subject:"音樂",teacher:"李文心"},7:{subject:"英語",teacher:"謝欣祐"}},
+        "星期三": {1:{subject:"理化",teacher:"李昌隆"},2:{subject:"數學",teacher:"徐培真"},3:{subject:"地理",teacher:"徐煜傑"},4:{subject:"公民與社會",teacher:"蕭安婷"},5:{subject:"英語",teacher:"謝欣祐"},6:{subject:"數學",teacher:"徐培真"},7:{subject:"國文",teacher:"張之璿"}},
+        "星期四": {1:{subject:"體育",teacher:"柯閎仁"},2:{subject:"數學",teacher:"徐培真"},3:{subject:"理化",teacher:"李昌隆"},4:{subject:"英語",teacher:"謝欣祐"},5:{subject:"童軍",teacher:"賴怡儒"},6:{subject:"國文",teacher:"張之璿"},7:{subject:"國文",teacher:"張之璿"}},
+        "星期五": {1:{subject:"輔導",teacher:"劉珈君"},2:{subject:"表演藝術",teacher:"胡甄玲"},3:{subject:"生活科技",teacher:"張文憲"},4:{subject:"見招拆招",teacher:"徐培真"},5:{subject:"班週會/社團",teacher:"張之璿/吳宗祐"},6:{subject:"班週會/社團",teacher:"張之璿/吳宗祐"},7:{subject:"卓越佳人/讀步佳林",teacher:"張之璿/張之璿"}}
+      },
+      "八年八班": {
+        "星期一": {1:{subject:"體育",teacher:"柯閎仁"},2:{subject:"英語",teacher:"洪郁芬"},3:{subject:"數學",teacher:"陳子平"},4:{subject:"國文",teacher:"楊育瑄"},5:{subject:"見招拆招",teacher:"陳子平"},6:{subject:"理化",teacher:"李昌隆"},7:{subject:"本土語",teacher:"沈淑嬿"}},
+        "星期二": {1:{subject:"數學",teacher:"陳子平"},2:{subject:"英語",teacher:"洪郁芬"},3:{subject:"生活科技",teacher:"張文憲"},4:{subject:"國文",teacher:"楊育瑄"},5:{subject:"家政",teacher:"吳雅琪"},6:{subject:"童軍",teacher:"賴怡儒"},7:{subject:"健康教育",teacher:"張茹崴"}},
+        "星期三": {1:{subject:"數學",teacher:"陳子平"},2:{subject:"理化",teacher:"李昌隆"},3:{subject:"表演藝術",teacher:"胡甄玲"},4:{subject:"讀步佳林/地理",teacher:"楊育瑄/徐煜傑"},5:{subject:"輔導",teacher:"劉珈君"},6:{subject:"歷史",teacher:"江濤"},7:{subject:"資訊科技",teacher:"陳文祥"}},
+        "星期四": {1:{subject:"音樂",teacher:"李文心"},2:{subject:"國文",teacher:"楊育瑄"},3:{subject:"理化",teacher:"李昌隆"},4:{subject:"英語",teacher:"洪郁芬"},5:{subject:"生命/佳英",teacher:"陳香螢/洪郁芬"},6:{subject:"視覺藝術",teacher:"齊家榕"},7:{subject:"國文",teacher:"楊育瑄"}},
+        "星期五": {1:{subject:"國文",teacher:"楊育瑄"},2:{subject:"體育",teacher:"柯閎仁"},3:{subject:"公民與社會",teacher:"蕭安婷"},4:{subject:"數學",teacher:"陳子平"},5:{subject:"班週會/社團",teacher:"李昌隆/邱仕惠"},6:{subject:"班週會/社團",teacher:"李昌隆/邱仕惠"},7:{subject:"地理/卓越佳人",teacher:"徐煜傑/李昌隆"}}
+      },
+      "八年九班": {
+        "星期一": {1:{subject:"英語",teacher:"洪郁芬"},2:{subject:"體育",teacher:"柯閎仁"},3:{subject:"數學",teacher:"徐詩媛"},4:{subject:"理化",teacher:"李昌隆"},5:{subject:"見招拆招",teacher:"徐詩媛"},6:{subject:"童軍",teacher:"賴怡儒"},7:{subject:"國文",teacher:"嚴雅瀞"}},
+        "星期二": {1:{subject:"健康教育",teacher:"張茹崴"},2:{subject:"國文",teacher:"嚴雅瀞"},3:{subject:"數學",teacher:"徐詩媛"},4:{subject:"生活科技",teacher:"張文憲"},5:{subject:"公民與社會",teacher:"蕭安婷"},6:{subject:"視覺藝術",teacher:"齊家榕"},7:{subject:"本土語",teacher:"沈淑嬿"}},
+        "星期三": {1:{subject:"音樂",teacher:"李文心"},2:{subject:"英語",teacher:"洪郁芬"},3:{subject:"家政",teacher:"吳雅琪"},4:{subject:"地理/讀步佳林",teacher:"徐煜傑/嚴雅瀞"},5:{subject:"資訊科技",teacher:"陳文祥"},6:{subject:"數學",teacher:"徐詩媛"},7:{subject:"理化",teacher:"李昌隆"}},
+        "星期四": {1:{subject:"理化",teacher:"李昌隆"},2:{subject:"數學",teacher:"徐詩媛"},3:{subject:"表演藝術",teacher:"胡甄玲"},4:{subject:"國文",teacher:"嚴雅瀞"},5:{subject:"體育",teacher:"柯閎仁"},6:{subject:"佳英/生命",teacher:"洪郁芬/陳香螢"},7:{subject:"歷史",teacher:"江濤"}},
+        "星期五": {1:{subject:"國文",teacher:"嚴雅瀞"},2:{subject:"國文",teacher:"嚴雅瀞"},3:{subject:"英語",teacher:"洪郁芬"},4:{subject:"輔導",teacher:"劉珈君"},5:{subject:"班週會/社團",teacher:"蕭安婷/黃如霜"},6:{subject:"班週會/社團",teacher:"蕭安婷/黃如霜"},7:{subject:"卓越佳人/地理",teacher:"蕭安婷/徐煜傑"}}
+      },
+      "八年十班": {
+        "星期一": {1:{subject:"數學",teacher:"陳彥勳"},2:{subject:"數學",teacher:"陳彥勳"},3:{subject:"本土語",teacher:"沈淑嬿"},4:{subject:"國文",teacher:"張之璿"},5:{subject:"英語",teacher:"許毓如"},6:{subject:"體育專業",teacher:"柯閎仁/許雅婷"},7:{subject:"體育專業",teacher:"柯閎仁/許雅婷"}},
+        "星期二": {1:{subject:"理化",teacher:"余忠勳"},2:{subject:"生活科技",teacher:"張文憲"},3:{subject:"理化",teacher:"余忠勳"},4:{subject:"國文",teacher:"張之璿"},5:{subject:"體育專業",teacher:"柯閎仁/許雅婷"},6:{subject:"體育專業",teacher:"柯閎仁/許雅婷"},7:{subject:"專項訓練",teacher:"柯閎仁/許雅婷"}},
+        "星期三": {1:{subject:"童軍",teacher:"賴怡儒"},2:{subject:"國文",teacher:"張之璿"},3:{subject:"輔導",teacher:"劉珈君"},4:{subject:"音樂",teacher:"李文心"},5:{subject:"數學",teacher:"陳彥勳"},6:{subject:"讀步佳林/佳英",teacher:"張之璿/許毓如"},7:{subject:"專項訓練",teacher:"柯閎仁/許雅婷"}},
+        "星期四": {1:{subject:"表演藝術",teacher:"胡甄玲"},2:{subject:"英語",teacher:"許毓如"},3:{subject:"國文",teacher:"張之璿"},4:{subject:"國文",teacher:"張之璿"},5:{subject:"公民與社會",teacher:"蕭安婷"},6:{subject:"數學",teacher:"陳彥勳"},7:{subject:"專項訓練",teacher:"柯閎仁/許雅婷"}},
+        "星期五": {1:{subject:"英語",teacher:"許毓如"},2:{subject:"理化",teacher:"余忠勳"},3:{subject:"歷史",teacher:"江濤"},4:{subject:"體育",teacher:"柯閎仁"},5:{subject:"體育專業",teacher:"柯閎仁/許雅婷"},6:{subject:"健康教育",teacher:"張茹崴"},7:{subject:"地理",teacher:"徐煜傑"}}
+      },
+
+      // ===== 九年級 (901 - 914) =====
+      "九年一班": {
+        "星期一": {1:{subject:"體育",teacher:"林益帆"},2:{subject:"家政",teacher:"黃世昌"},3:{subject:"國文",teacher:"黃國倫"},4:{subject:"英語",teacher:"蔡佩穎"},5:{subject:"分析數知生活",teacher:"林逸智"},6:{subject:"讀步佳林",teacher:"鄭雅文"},7:{subject:"生活科技",teacher:"康杏鎂"}},
+        "星期二": {1:{subject:"數學",teacher:"林逸智"},2:{subject:"數學",teacher:"林逸智"},3:{subject:"生活科學",teacher:"余忠勳"},4:{subject:"理化",teacher:"余忠勳"},5:{subject:"歷史",teacher:"張少瑄"},6:{subject:"童軍",teacher:"吳建緯"},7:{subject:"輔導",teacher:"李佳芸"}},
+        "星期三": {1:{subject:"英語",teacher:"蔡佩穎"},2:{subject:"表演藝術",teacher:"齊家榕"},3:{subject:"數學",teacher:"林逸智"},4:{subject:"地理",teacher:"余信德"},5:{subject:"國文",teacher:"黃國倫"},6:{subject:"地球科學",teacher:"余忠勳"},7:{subject:"擁抱佳績",teacher:"林逸智"}},
+        "星期四": {1:{subject:"國文",teacher:"黃國倫"},2:{subject:"英語",teacher:"蔡佩穎"},3:{subject:"佳英/餐桌",teacher:"蔡佩穎/余信德"},4:{subject:"數學",teacher:"林逸智"},5:{subject:"班週會/社團",teacher:"李文心/林逸智"},6:{subject:"健康教育",teacher:"張善爻"},7:{subject:"視覺藝術",teacher:"湯金花"}},
+        "星期五": {1:{subject:"國文",teacher:"黃國倫"},2:{subject:"體育",teacher:"林益帆"},3:{subject:"公民與社會",teacher:"陳芷妮"},4:{subject:"資訊科技",teacher:"林志遠"},5:{subject:"音樂",teacher:"李文心"},6:{subject:"理化",teacher:"余忠勳"},7:{subject:"國文",teacher:"黃國倫"}}
+      },
+      "九年二班": {
+        "星期一": {1:{subject:"國文",teacher:"黃國倫"},2:{subject:"餐桌/佳英",teacher:"余信德/廖玲玲"},3:{subject:"音樂",teacher:"李文心"},4:{subject:"表演藝術",teacher:"齊家榕"},5:{subject:"地球科學",teacher:"余忠勳"},6:{subject:"體育",teacher:"陳長明"},7:{subject:"分析數知生活",teacher:"林逸智"}},
+        "星期二": {1:{subject:"公民與社會",teacher:"陳芷妮"},2:{subject:"生活科技",teacher:"康杏鎂"},3:{subject:"國文",teacher:"黃國倫"},4:{subject:"輔導",teacher:"李佳芸"},5:{subject:"英語",teacher:"廖玲玲"},6:{subject:"數學",teacher:"林逸智"},7:{subject:"健康教育",teacher:"張善爻"}},
+        "星期三": {1:{subject:"童軍",teacher:"吳建緯"},2:{subject:"地理",teacher:"余信德"},3:{subject:"英語",teacher:"廖玲玲"},4:{subject:"數學",teacher:"林逸智"},5:{subject:"理化",teacher:"余忠勳"},6:{subject:"讀步佳林",teacher:"鄭雅文"},7:{subject:"體育",teacher:"陳長明"}},
+        "星期四": {1:{subject:"英語",teacher:"廖玲玲"},2:{subject:"歷史",teacher:"張少瑄"},3:{subject:"數學",teacher:"林逸智"},4:{subject:"資訊科技",teacher:"林志遠"},5:{subject:"視覺藝術",teacher:"湯金花"},6:{subject:"家政",teacher:"黃世昌"},7:{subject:"班週會",teacher:"吳建緯"}},
+        "星期五": {1:{subject:"理化",teacher:"余忠勳"},2:{subject:"數學",teacher:"林逸智"},3:{subject:"國文",teacher:"黃國倫"},4:{subject:"國文",teacher:"黃國倫"},5:{subject:"生活科學",teacher:"余忠勳"},6:{subject:"擁抱佳績",teacher:"吳建緯"},7:{subject:"國文",teacher:"黃國倫"}}
+      },
+      "九年三班": {
+        "星期一": {1:{subject:"輔導",teacher:"李佳芸"},2:{subject:"地球科學",teacher:"白宛玉"},3:{subject:"資訊科技",teacher:"林志遠"},4:{subject:"體育",teacher:"林益帆"},5:{subject:"國文",teacher:"楊怡雯"},6:{subject:"國文",teacher:"楊怡雯"},7:{subject:"數學",teacher:"蔡玉鳳"}},
+        "星期二": {1:{subject:"生活科技",teacher:"蔡玉鳳"},2:{subject:"視覺藝術",teacher:"湯金花"},3:{subject:"歷史",teacher:"林劭蓁"},4:{subject:"國文",teacher:"楊怡雯"},5:{subject:"英語",teacher:"陳珊珊"},6:{subject:"數學",teacher:"蔡玉鳳"},7:{subject:"理化",teacher:"蔡駿贬"}},
+        "星期三": {1:{subject:"分析數知生活",teacher:"蔡玉鳳"},2:{subject:"音樂",teacher:"李文心"},3:{subject:"英語",teacher:"陳珊珊"},4:{subject:"表演藝術",teacher:"齊家榕"},5:{subject:"健康教育",teacher:"張善爻"},6:{subject:"童軍",teacher:"吳建緯"},7:{subject:"體育",teacher:"林益帆"}},
+        "星期四": {1:{subject:"英語",teacher:"陳珊珊"},2:{subject:"數學",teacher:"蔡玉鳳"},3:{subject:"數學",teacher:"蔡玉鳳"},4:{subject:"佳英/餐桌",teacher:"陳珊珊/余信德"},5:{subject:"家政",teacher:"黃世昌"},6:{subject:"擁抱佳績",teacher:"蔡玉鳳"},7:{subject:"讀步佳林",teacher:"楊怡雯"}},
+        "星期五": {1:{subject:"班週會",teacher:"蔡玉鳳"},2:{subject:"理化",teacher:"蔡駿贬"},3:{subject:"生活科學",teacher:"蔡駿贬"},4:{subject:"地理",teacher:"余信德"},5:{subject:"公民與社會",teacher:"陳芷妮"},6:{subject:"國文",teacher:"楊怡雯"},7:{subject:"國文",teacher:"楊怡雯"}}
+      },
+      "九年四班": {
+        "星期一": {1:{subject:"視覺藝術",teacher:"湯金花"},2:{subject:"數學",teacher:"黃雅伶"},3:{subject:"健康教育",teacher:"張善爻"},4:{subject:"讀步佳林",teacher:"張庭瑄"},5:{subject:"家政",teacher:"黃世昌"},6:{subject:"音樂",teacher:"李文心"},7:{subject:"生活科學",teacher:"林俊能"}},
+        "星期二": {1:{subject:"數學",teacher:"黃雅伶"},2:{subject:"理化",teacher:"林俊能"},3:{subject:"數學",teacher:"黃雅伶"},4:{subject:"英語",teacher:"陳珊珊"},5:{subject:"地理",teacher:"余信德"},6:{subject:"餐桌/佳英",teacher:"余信德/陳珊珊"},7:{subject:"體育",teacher:"林益帆"}},
+        "星期三": {1:{subject:"理化",teacher:"林俊能"},2:{subject:"國文",teacher:"張庭瑄"},3:{subject:"資訊科技",teacher:"林志遠"},4:{subject:"擁抱佳績",teacher:"黃雅伶"},5:{subject:"國文",teacher:"張庭瑄"},6:{subject:"分析數知生活",teacher:"黃雅伶"},7:{subject:"生活科技",teacher:"康杏鎂"}},
+        "星期四": {1:{subject:"國文",teacher:"張庭瑄"},2:{subject:"表演藝術",teacher:"齊家榕"},3:{subject:"國文",teacher:"張庭瑄"},4:{subject:"體育",teacher:"林益帆"},5:{subject:"童軍",teacher:"吳建緯"},6:{subject:"英語",teacher:"陳珊珊"},7:{subject:"輔導",teacher:"李佳芸"}},
+        "星期五": {1:{subject:"地球科學",teacher:"林俊能"},2:{subject:"國文",teacher:"張庭瑄"},3:{subject:"英語",teacher:"陳珊珊"},4:{subject:"公民與社會",teacher:"陳芷妮"},5:{subject:"班週會",teacher:"黃雅伶"},6:{subject:"數學",teacher:"黃雅伶"},7:{subject:"歷史",teacher:"余信德"}}
+      },
+      "九年五班": {
+        "星期一": {1:{subject:"數學",teacher:"陳子平"},2:{subject:"地球科學",teacher:"林俊能"},3:{subject:"體育",teacher:"許雅婷"},4:{subject:"國文",teacher:"葉惠婷"},5:{subject:"生活科技",teacher:"康杏鎂"},6:{subject:"資訊科技",teacher:"林志遠"},7:{subject:"數學",teacher:"陳子平"}},
+        "星期二": {1:{subject:"表演藝術",teacher:"陳筱婷"},2:{subject:"讀步佳林",teacher:"葉惠婷"},3:{subject:"歷史",teacher:"張少瑄"},4:{subject:"英語",teacher:"蔡佩穎"},5:{subject:"數學",teacher:"陳子平"},6:{subject:"健康教育",teacher:"張善爻"},7:{subject:"家政",teacher:"黃世昌"}},
+        "星期三": {1:{subject:"公民與社會",teacher:"陳芷妮"},2:{subject:"國文",teacher:"葉惠婷"},3:{subject:"國文",teacher:"葉惠婷"},4:{subject:"童軍",teacher:"吳建緯"},5:{subject:"分析數知生活",teacher:"陳子平"},6:{subject:"理化",teacher:"林俊能"},7:{subject:"生活科學",teacher:"林俊能"}},
+        "星期四": {1:{subject:"體育",teacher:"許雅婷"},2:{subject:"音樂",teacher:"李文心"},3:{subject:"餐桌/佳英",teacher:"余信德/蔡佩穎"},4:{subject:"數學",teacher:"陳子平"},5:{subject:"輔導",teacher:"古屏蓉"},6:{subject:"英語",teacher:"蔡佩穎"},7:{subject:"國文",teacher:"葉惠婷"}},
+        "星期五": {1:{subject:"視覺藝術",teacher:"湯金花"},2:{subject:"國文",teacher:"葉惠婷"},3:{subject:"英語",teacher:"蔡佩穎"},4:{subject:"地理",teacher:"余信德"},5:{subject:"班週會",teacher:"陳子平"},6:{subject:"理化",teacher:"林俊能"},7:{subject:"擁抱佳績",teacher:"陳子平"}}
+      },
+      "九年六班": {
+        "星期一": {1:{subject:"音樂",teacher:"李文心"},2:{subject:"佳英/餐桌",teacher:"周盈君/余信德"},3:{subject:"輔導",teacher:"古屏蓉"},4:{subject:"童軍",teacher:"吳建緯"},5:{subject:"數學",teacher:"許智堯"},6:{subject:"國文",teacher:"吳宛婷"},7:{subject:"國文",teacher:"吳宛婷"}},
+        "星期二": {1:{subject:"擁抱佳績",teacher:"湯金花"},2:{subject:"公民與社會",teacher:"陳芷妮"},3:{subject:"國文",teacher:"吳宛婷"},4:{subject:"體育",teacher:"許雅婷"},5:{subject:"英語",teacher:"周盈君"},6:{subject:"數學",teacher:"許智堯"},7:{subject:"歷史",teacher:"余信德"}},
+        "星期三": {1:{subject:"國文",teacher:"吳宛婷"},2:{subject:"視覺藝術",teacher:"湯金花"},3:{subject:"英語",teacher:"周盈君"},4:{subject:"生活科學",teacher:"林俊能"},5:{subject:"地球科學",teacher:"林俊能"},6:{subject:"分析數知生活",teacher:"許智堯"},7:{subject:"健康教育",teacher:"張善爻"}},
+        "星期四": {1:{subject:"英語",teacher:"周盈君"},2:{subject:"地理",teacher:"余信德"},3:{subject:"數學",teacher:"許智堯"},4:{subject:"體育",teacher:"許雅婷"},5:{subject:"理化",teacher:"林俊能"},6:{subject:"國文",teacher:"吳宛婷"},7:{subject:"理化",teacher:"林俊能"}},
+        "星期五": {1:{subject:"資訊科技",teacher:"林志遠"},2:{subject:"數學",teacher:"許智堯"},3:{subject:"表演藝術",teacher:"陳筱婷"},4:{subject:"家政",teacher:"黃世昌"},5:{subject:"班週會",teacher:"湯金花"},6:{subject:"生活科技",teacher:"康杏鎂"},7:{subject:"讀步佳林",teacher:"吳宛婷"}}
+      },
+      "九年七班": {
+        "星期一": {1:{subject:"數學",teacher:"許智堯"},2:{subject:"公民與社會",teacher:"蕭安婷"},3:{subject:"生活科技",teacher:"康杏鎂"},4:{subject:"國文",teacher:"楊怡雯"},5:{subject:"歷史",teacher:"余信德"},6:{subject:"分析數知生活",teacher:"許智堯"},7:{subject:"生活科學",teacher:"楊筱慈"}},
+        "星期二": {1:{subject:"地理",teacher:"余信德"},2:{subject:"國文",teacher:"楊怡雯"},3:{subject:"體育",teacher:"許雅婷"},4:{subject:"英語",teacher:"林燕如"},5:{subject:"數學",teacher:"許智堯"},6:{subject:"輔導",teacher:"李佳芸"},7:{subject:"表演藝術",teacher:"陳筱婷"}},
+        "星期三": {1:{subject:"理化",teacher:"楊筱慈"},2:{subject:"數學",teacher:"許智堯"},3:{subject:"童軍",teacher:"吳建緯"},4:{subject:"國文",teacher:"楊怡雯"},5:{subject:"擁抱佳績",teacher:"林燕如"},6:{subject:"國文",teacher:"楊怡雯"},7:{subject:"讀步佳林",teacher:"鄭雅文"}},
+        "星期四": {1:{subject:"國文",teacher:"楊怡雯"},2:{subject:"視覺藝術",teacher:"湯金花"},3:{subject:"音樂",teacher:"李文心"},4:{subject:"數學",teacher:"許智堯"},5:{subject:"餐桌/佳英",teacher:"余信德/林燕如"},6:{subject:"英語",teacher:"林燕如"},7:{subject:"家政",teacher:"黃世昌"}},
+        "星期五": {1:{subject:"體育",teacher:"許雅婷"},2:{subject:"健康教育",teacher:"張善爻"},3:{subject:"英語",teacher:"林燕如"},4:{subject:"地球科學",teacher:"白宛玉"},5:{subject:"班週會",teacher:"林燕如"},6:{subject:"理化",teacher:"楊筱慈"},7:{subject:"資訊科技",teacher:"林志遠"}}
+      },
+      "九年八班": {
+        "星期一": {1:{subject:"數學",teacher:"蔡玉鳳"},2:{subject:"國文",teacher:"楊怡雯"},3:{subject:"生活科學",teacher:"楊筱慈"},4:{subject:"家政",teacher:"黃世昌"},5:{subject:"視覺藝術",teacher:"湯金花"},6:{subject:"輔導",teacher:"李佳芸"},7:{subject:"地理",teacher:"余信德"}},
+        "星期二": {1:{subject:"國文",teacher:"楊怡雯"},2:{subject:"地球科學",teacher:"白宛玉"},3:{subject:"健康教育",teacher:"張善爻"},4:{subject:"英語",teacher:"陳進雄"},5:{subject:"體育",teacher:"許雅婷"},6:{subject:"公民與社會",teacher:"蕭安婷"},7:{subject:"數學",teacher:"蔡玉鳳"}},
+        "星期三": {1:{subject:"讀步佳林",teacher:"鄭雅文"},2:{subject:"資訊科技",teacher:"林志遠"},3:{subject:"理化",teacher:"楊筱慈"},4:{subject:"擁抱佳績",teacher:"李佳芸"},5:{subject:"國文",teacher:"楊怡雯"},6:{subject:"分析數知生活",teacher:"蔡玉鳳"},7:{subject:"童軍",teacher:"吳建緯"}},
+        "星期四": {1:{subject:"數學",teacher:"蔡玉鳳"},2:{subject:"國文",teacher:"楊怡雯"},3:{subject:"表演藝術",teacher:"陳筱婷"},4:{subject:"歷史",teacher:"張少瑄"},5:{subject:"佳英/餐桌",teacher:"陳進雄/余信德"},6:{subject:"英語",teacher:"陳進雄"},7:{subject:"體育",teacher:"許雅婷"}},
+        "星期五": {1:{subject:"數學",teacher:"蔡玉鳳"},2:{subject:"理化",teacher:"楊筱慈"},3:{subject:"英語",teacher:"陳進雄"},4:{subject:"生活科技",teacher:"康杏鎂"},5:{subject:"班週會",teacher:"李佳芸"},6:{subject:"音樂",teacher:"李文心"},7:{subject:"國文",teacher:"楊怡雯"}}
+      },
+      "九年九班": {
+        "星期一": {1:{subject:"國文",teacher:"曹瑜芳"},2:{subject:"體育",teacher:"許雅婷"},3:{subject:"地球科學",teacher:"白宛玉"},4:{subject:"英語",teacher:"陳珊珊"},5:{subject:"資訊科技",teacher:"林志遠"},6:{subject:"家政",teacher:"黃世昌"},7:{subject:"童軍",teacher:"吳建緯"}},
+        "星期二": {1:{subject:"英語",teacher:"陳珊珊"},2:{subject:"公民與社會",teacher:"蕭安婷"},3:{subject:"讀步佳林",teacher:"曹瑜芳"},4:{subject:"歷史",teacher:"林劭蓁"},5:{subject:"生活科學",teacher:"蔡駿贬"},6:{subject:"理化",teacher:"蔡駿贬"},7:{subject:"數學",teacher:"許智堯"}},
+        "星期三": {1:{subject:"分析數知生活",teacher:"許智堯"},2:{subject:"數學",teacher:"許智堯"},3:{subject:"數學",teacher:"許智堯"},4:{subject:"國文",teacher:"曹瑜芳"},5:{subject:"生活科技",teacher:"康杏鎂"},6:{subject:"國文",teacher:"曹瑜芳"},7:{subject:"視覺藝術",teacher:"湯金花"}},
+        "星期四": {1:{subject:"健康教育",teacher:"張善爻"},2:{subject:"表演藝術",teacher:"陳筱婷"},3:{subject:"國文",teacher:"曹瑜芳"},4:{subject:"擁抱佳績",teacher:"曹瑜芳"},5:{subject:"輔導",teacher:"李佳芸"},6:{subject:"體育",teacher:"許雅婷"},7:{subject:"理化",teacher:"蔡駿贬"}},
+        "星期五": {1:{subject:"佳英/餐桌",teacher:"陳珊珊/胡芷瑤"},2:{subject:"英語",teacher:"陳珊珊"},3:{subject:"國文",teacher:"曹瑜芳"},4:{subject:"數學",teacher:"許智堯"},5:{subject:"班週會",teacher:"曹瑜芳"},6:{subject:"地理",teacher:"胡芷瑤"},7:{subject:"音樂",teacher:"李文心"}}
+      },
+      "九年十班": {
+        "星期一": {1:{subject:"地理",teacher:"胡芷瑤"},2:{subject:"數學",teacher:"許智堯"},3:{subject:"體育",teacher:"黃昀樺"},4:{subject:"輔導",teacher:"李佳芸"},5:{subject:"讀步佳林",teacher:"曹瑜芳"},6:{subject:"童軍",teacher:"吳建緯"},7:{subject:"國文",teacher:"曹瑜芳"}},
+        "星期二": {1:{subject:"資訊科技",teacher:"林志遠"},2:{subject:"英語",teacher:"陳珊珊"},3:{subject:"理化",teacher:"林俊能"},4:{subject:"視覺藝術",teacher:"湯金花"},5:{subject:"家政",teacher:"黃世昌"},6:{subject:"公民與社會",teacher:"陳芷妮"},7:{subject:"數學",teacher:"許智堯"}},
+        "星期三": {1:{subject:"數學",teacher:"許智堯"},2:{subject:"地球科學",teacher:"林俊能"},3:{subject:"國文",teacher:"曹瑜芳"},4:{subject:"體育",teacher:"黃昀樺"},5:{subject:"分析數知生活",teacher:"許智堯"},6:{subject:"擁抱佳績",teacher:"張善爻"},7:{subject:"英語",teacher:"陳珊珊"}},
+        "星期四": {1:{subject:"國文",teacher:"曹瑜芳"},2:{subject:"理化",teacher:"林俊能"},3:{subject:"生活科學",teacher:"林俊能"},4:{subject:"健康教育",teacher:"張善爻"},5:{subject:"英語",teacher:"陳珊珊"},6:{subject:"表演藝術",teacher:"陳筱婷"},7:{subject:"歷史",teacher:"余信德"}},
+        "星期五": {1:{subject:"餐桌/佳英",teacher:"胡芷瑤/陳珊珊"},2:{subject:"國文",teacher:"曹瑜芳"},3:{subject:"生活科技",teacher:"康杏鎂"},4:{subject:"音樂",teacher:"李文心"},5:{subject:"班週會",teacher:"張善爻"},6:{subject:"數學",teacher:"許智堯"},7:{subject:"國文",teacher:"曹瑜芳"}}
+      },
+      "九年十一班": {
+        "星期一": {1:{subject:"表演藝術",teacher:"齊家榕"},2:{subject:"資訊科技",teacher:"林志遠"},3:{subject:"理化",teacher:"林俊能"},4:{subject:"地球科學",teacher:"林俊能"},5:{subject:"數學",teacher:"黃雅伶"},6:{subject:"視覺藝術",teacher:"湯金花"},7:{subject:"國文",teacher:"葉惠婷"}},
+        "星期二": {1:{subject:"佳英/餐桌",teacher:"林燕如/胡芷瑤"},2:{subject:"家政",teacher:"黃世昌"},3:{subject:"國文",teacher:"葉惠婷"},4:{subject:"健康教育",teacher:"張善爻"},5:{subject:"英語",teacher:"林燕如"},6:{subject:"數學",teacher:"黃雅伶"},7:{subject:"體育",teacher:"林智翔"}},
+        "星期三": {1:{subject:"輔導",teacher:"李佳芸"},2:{subject:"公民與社會",teacher:"陳芷妮"},3:{subject:"英語",teacher:"林燕如"},4:{subject:"生活科技",teacher:"康杏鎂"},5:{subject:"擁抱佳績",teacher:"葉惠婷"},6:{subject:"國文",teacher:"葉惠婷"},7:{subject:"分析數知生活",teacher:"黃雅伶"}},
+        "星期四": {1:{subject:"英語",teacher:"林燕如"},2:{subject:"國文",teacher:"葉惠婷"},3:{subject:"數學",teacher:"黃雅伶"},4:{subject:"地理",teacher:"胡芷瑤"},5:{subject:"讀步佳林",teacher:"葉惠婷"},6:{subject:"生活科學",teacher:"林俊能"},7:{subject:"歷史",teacher:"張少瑄"}},
+        "星期五": {1:{subject:"童軍",teacher:"吳建緯"},2:{subject:"數學",teacher:"黃雅伶"},3:{subject:"國文",teacher:"葉惠婷"},4:{subject:"理化",teacher:"林俊能"},5:{subject:"班週會",teacher:"葉惠婷"},6:{subject:"體育",teacher:"林智翔"},7:{subject:"音樂",teacher:"齊家榕"}}
+      },
+      "九年十二班": {
+        "星期一": {1:{subject:"數學",teacher:"林逸智"},2:{subject:"地理",teacher:"胡芷瑤"},3:{subject:"英語",teacher:"陳進雄"},4:{subject:"理化",teacher:"楊筱慈"},5:{subject:"國文",teacher:"黃國倫"},6:{subject:"生活科技",teacher:"康杏鎂"},7:{subject:"資訊科技",teacher:"林志遠"}},
+        "星期二": {1:{subject:"餐桌/佳英",teacher:"胡芷瑤/陳進雄"},2:{subject:"國文",teacher:"黃國倫"},3:{subject:"理化",teacher:"楊筱慈"},4:{subject:"表演藝術",teacher:"齊家榕"},5:{subject:"分析數知生活",teacher:"林逸智"},6:{subject:"家政",teacher:"黃世昌"},7:{subject:"公民與社會",teacher:"陳芷妮"}},
+        "星期三": {1:{subject:"地球科學",teacher:"白宛玉"},2:{subject:"讀步佳林",teacher:"鄭雅文"},3:{subject:"英語",teacher:"陳進雄"},4:{subject:"國文",teacher:"黃國倫"},5:{subject:"體育",teacher:"黃昀樺"},6:{subject:"數學",teacher:"林逸智"},7:{subject:"生活科學",teacher:"楊筱慈"}},
+        "星期四": {1:{subject:"歷史",teacher:"張少瑄"},2:{subject:"數學",teacher:"林逸智"},3:{subject:"健康教育",teacher:"張善爻"},4:{subject:"音樂",teacher:"齊家榕"},5:{subject:"國文",teacher:"黃國倫"},6:{subject:"視覺藝術",teacher:"湯金花"},7:{subject:"擁抱佳績",teacher:"楊筱慈"}},
+        "星期五": {1:{subject:"英語",teacher:"陳進雄"},2:{subject:"童軍",teacher:"吳建緯"},3:{subject:"數學",teacher:"林逸智"},4:{subject:"體育",teacher:"黃昀樺"},5:{subject:"班週會",teacher:"楊筱慈"},6:{subject:"輔導",teacher:"李佳芸"},7:{subject:"國文",teacher:"黃國倫"}}
+      },
+      "九年十三班": {
+        "星期一": {1:{subject:"理化",teacher:"楊筱慈"},2:{subject:"音樂",teacher:"齊家榕"},3:{subject:"英語",teacher:"蔡佩穎"},4:{subject:"地理",teacher:"胡芷瑤"},5:{subject:"數學",teacher:"蔡玉鳳"},6:{subject:"國文",teacher:"黃國倫"},7:{subject:"國文",teacher:"黃國倫"}},
+        "星期二": {1:{subject:"國文",teacher:"黃國倫"},2:{subject:"體育",teacher:"黃昀樺"},3:{subject:"數學",teacher:"蔡玉鳳"},4:{subject:"數學",teacher:"蔡玉鳳"},5:{subject:"公民與社會",teacher:"陳芷妮"},6:{subject:"視覺藝術",teacher:"湯金花"},7:{subject:"餐桌/佳英",teacher:"胡芷瑤/蔡佩穎"}},
+        "星期三": {1:{subject:"家政",teacher:"黃世昌"},2:{subject:"輔導",teacher:"李佳芸"},3:{subject:"英語",teacher:"蔡佩穎"},4:{subject:"歷史",teacher:"張少瑄"},5:{subject:"生活科學",teacher:"楊筱慈"},6:{subject:"讀步佳林",teacher:"吳宛婷"},7:{subject:"分析數知生活",teacher:"蔡玉鳳"}},
+        "星期四": {1:{subject:"表演藝術",teacher:"齊家榕"},2:{subject:"國文",teacher:"黃國倫"},3:{subject:"地球科學",teacher:"白宛玉"},4:{subject:"資訊科技",teacher:"林志遠"},5:{subject:"班週會",teacher:"郭立研"},6:{subject:"擁抱佳績",teacher:"郭立研"},7:{subject:"健康教育",teacher:"張善爻"}},
+        "星期五": {1:{subject:"英語",teacher:"蔡佩穎"},2:{subject:"國文",teacher:"黃國倫"},3:{subject:"體育",teacher:"黃昀樺"},4:{subject:"理化",teacher:"楊筱慈"},5:{subject:"生活科技",teacher:"康杏鎂"},6:{subject:"數學",teacher:"蔡玉鳳"},7:{subject:"童軍",teacher:"吳建緯"}}
+      },
+      "九年十四班": {
+        "星期一": {1:{subject:"數學",teacher:"黃雅伶"},2:{subject:"地球科學",teacher:"余忠勳"},3:{subject:"輔導",teacher:"李佳芸"},4:{subject:"國文",teacher:"吳宛婷"},5:{subject:"歷史",teacher:"張少瑄"},6:{subject:"體育專業",teacher:"范碩芬/簡煒倫"},7:{subject:"體育專業",teacher:"范碩芬/簡煒倫"}},
+        "星期二": {1:{subject:"國文",teacher:"吳宛婷"},2:{subject:"體育",teacher:"簡煒倫"},3:{subject:"生活科技",teacher:"康杏鎂"},4:{subject:"英語",teacher:"周盈君"},5:{subject:"數學",teacher:"黃雅伶"},6:{subject:"體育專業",teacher:"范碩芬/簡煒倫"},7:{subject:"專項訓練",teacher:"范碩芬/簡煒倫"}},
+        "星期三": {1:{subject:"分析數/科學",teacher:"黃雅伶/余忠勳"},2:{subject:"理化",teacher:"余忠勳"},3:{subject:"數學",teacher:"黃雅伶"},4:{subject:"視覺藝術",teacher:"湯金花"},5:{subject:"國文",teacher:"吳宛婷"},6:{subject:"體育專業",teacher:"范碩芬/簡煒倫"},7:{subject:"專項訓練",teacher:"范碩芬/簡煒倫"}},
+        "星期四": {1:{subject:"公民與社會",teacher:"陳芷妮"},2:{subject:"家政",teacher:"黃世昌"},3:{subject:"英語",teacher:"周盈君"},4:{subject:"數學",teacher:"黃雅伶"},5:{subject:"班週會",teacher:"吳宛婷"},6:{subject:"體育專業",teacher:"范碩芬/簡煒倫"},7:{subject:"專項訓練",teacher:"范碩芬/簡煒倫"}},
+        "星期五": {1:{subject:"地理",teacher:"胡芷瑤"},2:{subject:"國文",teacher:"吳宛婷"},3:{subject:"理化",teacher:"余忠勳"},4:{subject:"音樂",teacher:"齊家榕"},5:{subject:"國文",teacher:"吳宛婷"},6:{subject:"英語",teacher:"周盈君"},7:{subject:"健康教育",teacher:"張善爻"}}
+      }
+    };
+
+    createApp({
+      setup() {
+        const currentView = ref('matrix');
+        const selectedDay = ref('星期一');
+        const selectedGrade = ref('all');
+        const selectedWeekMode = ref('all');
+        const selectedTeacher = ref('徐嘉琦');
+        const selectedClass = ref('七年一班');
+        const searchKeyword = ref('');
+
+        // 調代課系統專用 State
+        const subTeacher = ref('徐嘉琦');
+        const subDay = ref('星期二');
+        const subPeriod = ref(3);
+        const subMode = ref('sub');
+        const subSameSubjectOnly = ref(false);
+        const activeSlipData = ref(null);
+
+        const days = ['星期一', '星期二', '星期三', '星期四', '星期五'];
+
+        const grades = [
+          { label: '全校 (35班)', value: 'all' },
+          { label: '七年級 (11班)', value: '7' },
+          { label: '八年級 (10班)', value: '8' },
+          { label: '九年級 (14班)', value: '9' }
+        ];
+
+        const periodHeaders = [
+          { name: '第一節', time: '08:30 - 09:15' },
+          { name: '第二節', time: '09:25 - 10:10' },
+          { name: '第三節', time: '10:20 - 11:05' },
+          { name: '第四節', time: '11:05 - 12:00' },
+          { name: '第五節', time: '13:05 - 13:50' },
+          { name: '第六節', time: '14:05 - 14:50' },
+          { name: '第七節', time: '15:05 - 15:50' }
+        ];
+
+        const allClassesList = Object.keys(RAW_SCHEDULE_DATABASE);
+
+        const selectedGradeLabel = computed(() => {
+          const g = grades.find(item => item.value === selectedGrade.value);
+          return g ? g.label : '全校 (35班)';
+        });
+
+        const selectedWeekModeLabel = computed(() => {
+          if (selectedWeekMode.value === 'odd') return '單週';
+          if (selectedWeekMode.value === 'even') return '雙週';
+          return '全顯';
+        });
+
+        // 依單雙週剖析課程內容
+        const parseLessonByWeek = (lessonObj, mode) => {
+          if (!lessonObj) return null;
+          let { subject, teacher } = lessonObj;
+
+          if (mode === 'all') {
+            return { subject, teacher };
+          }
+
+          if (subject.includes('/')) {
+            const parts = subject.split('/');
+            subject = (mode === 'odd') ? parts[0] : (parts[1] || parts[0]);
+          }
+          if (teacher.includes('/')) {
+            const parts = teacher.split('/');
+            teacher = (mode === 'odd') ? parts[0] : (parts[1] || parts[0]);
+          }
+
+          return { subject, teacher };
+        };
+
+        // 收集全校所有教師清單
+        const allTeachersList = computed(() => {
+          const teachers = new Set();
+          for (const cls in RAW_SCHEDULE_DATABASE) {
+            for (const d in RAW_SCHEDULE_DATABASE[cls]) {
+              for (const p in RAW_SCHEDULE_DATABASE[cls][d]) {
+                const rawT = RAW_SCHEDULE_DATABASE[cls][d][p].teacher;
+                if (rawT) {
+                  rawT.split(/[\/\s]+/).forEach(name => {
+                    const cleanName = name.replace(/\(單\)|\(雙\)|瓦西/g, '').trim();
+                    if (cleanName) teachers.add(cleanName);
+                  });
+                }
+              }
+            }
+          }
+          return Array.from(teachers).sort((a, b) => a.localeCompare(b, 'zh-TW'));
+        });
+
+        // 依年級篩選班級
+        const filteredClasses = computed(() => {
+          if (selectedGrade.value === 'all') return allClassesList;
+          const gradePrefixMap = { '7': '七年', '8': '八年', '9': '九年' };
+          const prefix = gradePrefixMap[selectedGrade.value];
+          return allClassesList.filter(c => c.startsWith(prefix));
+        });
+
+        // 取得特定班級課程
+        const getLesson = (className, day, period) => {
+          const rawLesson = RAW_SCHEDULE_DATABASE[className]?.[day]?.[period];
+          if (!rawLesson) return null;
+          return parseLessonByWeek(rawLesson, selectedWeekMode.value);
+        };
+
+        // 查詢教師在某日某節課程
+        const getTeacherPeriodLesson = (teacherName, day, period) => {
+          for (const cls of allClassesList) {
+            const rawLesson = RAW_SCHEDULE_DATABASE[cls]?.[day]?.[period];
+            if (rawLesson) {
+              const parsed = parseLessonByWeek(rawLesson, selectedWeekMode.value);
+              if (parsed && parsed.teacher && parsed.teacher.includes(teacherName)) {
+                return {
+                  className: cls,
+                  subject: parsed.subject,
+                  teacher: parsed.teacher
+                };
+              }
+            }
+          }
+          return null;
+        };
+
+        // 計算教師堂數
+        const getTeacherDailyCount = (teacherName, day) => {
+          let count = 0;
+          for (let p = 1; p <= 7; p++) {
+            if (getTeacherPeriodLesson(teacherName, day, p)) count++;
+          }
+          return count;
+        };
+
+        const getTeacherWeeklyTotal = (teacherName) => {
+          let total = 0;
+          days.forEach(day => {
+            total += getTeacherDailyCount(teacherName, day);
+          });
+          return total;
+        };
+
+        const searchedTeachersList = computed(() => {
+          if (!searchKeyword.value) return allTeachersList.value;
+          const kw = searchKeyword.value.toLowerCase().trim();
+          return allTeachersList.value.filter(t => t.toLowerCase().includes(kw));
+        });
+
+        const uniqueTeachersTodayCount = computed(() => {
+          const tSet = new Set();
+          filteredClasses.value.forEach(cls => {
+            for (let p = 1; p <= 7; p++) {
+              const lesson = getLesson(cls, selectedDay.value, p);
+              if (lesson && lesson.teacher) {
+                tSet.add(lesson.teacher);
+              }
+            }
+          });
+          return tSet.size;
+        });
+
+        const currentTotalClasses = computed(() => filteredClasses.value.length);
+        const currentTotalPeriods = computed(() => filteredClasses.value.length * 7);
+
+        // 取得調代課目標節次之原課程
+        const subCurrentTargetLesson = computed(() => {
+          return getTeacherPeriodLesson(subTeacher.value, subDay.value, subPeriod.value);
+        });
+
+        // 智慧比對調代課候選清單
+        const subCandidatesList = computed(() => {
+          if (!subTeacher.value) return [];
+
+          const targetLesson = subCurrentTargetLesson.value;
+          if (!targetLesson) return []; // 若原教師該節無排課則無法進行媒合
+
+          const targetSubject = targetLesson.subject;
+          const targetClass = targetLesson.className; // 例如: "七年一班"
+
+          const candidates = [];
+
+          allTeachersList.value.forEach(teacher => {
+            if (teacher === subTeacher.value) return;
+
+            // 檢查候選教師 (乙) 在時段一 (subDay, subPeriod) 是否為全校空堂
+            const isFreeAtTargetSlot = !getTeacherPeriodLesson(teacher, subDay.value, subPeriod.value);
+
+            if (subMode.value === 'sub') {
+              // 模式 1: 尋找代課 (該節需空堂)
+              if (isFreeAtTargetSlot) {
+                const teacherLessons = [];
+                days.forEach(d => {
+                  for (let p = 1; p <= 7; p++) {
+                    const l = getTeacherPeriodLesson(teacher, d, p);
+                    if (l) teacherLessons.push(l);
+                  }
+                });
+
+                const isSameSubject = teacherLessons.some(l => targetSubject && l.subject.includes(targetSubject.substring(0, 2)));
+                const teachesSameClass = teacherLessons.some(l => targetClass && l.className === targetClass);
+
+                if (!subSameSubjectOnly.value || isSameSubject) {
+                  candidates.push({
+                    name: teacher,
+                    isSameSubject,
+                    teachesSameClass,
+                    dailyLessonsCount: getTeacherDailyCount(teacher, subDay.value)
+                  });
+                }
+              }
+            } else if (subMode.value === 'swap') {
+              // 模式 2: 同班級任課教師對調 (甲有課乙空堂 ↔ 乙有課甲空堂)
+              if (isFreeAtTargetSlot) {
+                days.forEach(d2 => {
+                  for (let p2 = 1; p2 <= 7; p2++) {
+                    // 避開同一節次
+                    if (d2 === subDay.value && p2 === subPeriod.value) continue;
+
+                    const candidateLesson = getTeacherPeriodLesson(teacher, d2, p2);
+                    
+                    // 條件 1: 乙老師必須在時段二 (d2, p2) 於「同一班級 (targetClass)」授課
+                    if (candidateLesson && candidateLesson.className === targetClass) {
+                      // 條件 2: 甲老師在時段二 (d2, p2) 必須也是全校空堂
+                      const applicantFreeAtCandidateSlot = !getTeacherPeriodLesson(subTeacher.value, d2, p2);
+
+                      if (applicantFreeAtCandidateSlot) {
+                        const isSameSubject = (candidateLesson.subject.substring(0, 2) === targetSubject.substring(0, 2));
+
+                        candidates.push({
+                          name: teacher,
+                          swapDay: d2,
+                          swapPeriod: p2,
+                          swapLesson: candidateLesson,
+                          isSameClassSwap: true,
+                          isSameSubject
+                        });
+                      }
+                    }
+                  }
+                });
+              }
+            }
+          });
+
+          if (subMode.value === 'sub') {
+            return candidates.sort((a, b) => (b.isSameSubject + b.teachesSameClass) - (a.isSameSubject + a.teachesSameClass));
+          } else {
+            return candidates.sort((a, b) => (b.isSameSubject) - (a.isSameSubject));
+          }
+        });
+
+        const copyRequestText = (targetTeacherName, mode, extraData = null) => {
+          let text = "";
+          const targetLesson = subCurrentTargetLesson.value;
+          const className = targetLesson ? targetLesson.className : "班級";
+          const subject = targetLesson ? targetLesson.subject : "課程";
+
+          if (mode === 'sub') {
+            text = `${targetTeacherName}老師您好：我是${subTeacher.value}老師。請問您在 ${subDay.value} 第${subPeriod.value}節 有空嗎？想請託您協助代課【${className} ${subject}】，非常感謝您！`;
+          } else {
+            text = `${targetTeacherName}老師您好：我是${subTeacher.value}老師。請問能否與您對調【${className}】的課程？\n\n` +
+                   `• 時段一 (${subDay.value}第${subPeriod.value}節)：由您接替我上【${className} ${subject}】(您該節空堂)\n` +
+                   `• 時段二 (${extraData.swapDay}第${extraData.swapPeriod}節)：由我接替您上【${className} ${extraData.swapLesson.subject}】(我該節空堂)\n\n` +
+                   `兩節課均為同一班級課程對調，不影響班級總課表與其他班級。不知您時間是否方便？謝謝您！`;
+          }
+
+          const textarea = document.createElement("textarea");
+          textarea.value = text;
+          document.body.appendChild(textarea);
+          textarea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textarea);
+
+          alert(`已成功複製請託訊息！可貼上 Line 或 Email 傳送給 ${targetTeacherName} 老師：\n\n"${text}"`);
+        };
+
+        // 產製申請單並修復視圖捲動
+        const prepareOfficialSlip = (targetTeacherName, mode, extraData = null) => {
+          const targetLesson = subCurrentTargetLesson.value;
+          activeSlipData.value = {
+            applicant: subTeacher.value,
+            targetTeacher: targetTeacherName,
+            type: mode,
+            day: subDay.value,
+            period: subPeriod.value,
+            className: targetLesson ? targetLesson.className : "課堂",
+            subject: targetLesson ? targetLesson.subject : "科目",
+            swapDay: extraData ? extraData.swapDay : '',
+            swapPeriod: extraData ? extraData.swapPeriod : '',
+            swapClassName: extraData && extraData.swapLesson ? extraData.swapLesson.className : '',
+            swapSubject: extraData && extraData.swapLesson ? extraData.swapLesson.subject : ''
+          };
+
+          // 使用 DOM nextTick 確保產生單據後自動平滑捲動至檢視卡片
+          nextTick(() => {
+            const el = document.getElementById('official-slip-card');
+            if (el) {
+              el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          });
+        };
+
+        const printOfficialSlip = () => {
+          document.body.classList.add('print-slip-only');
+          setTimeout(() => {
+            window.print();
+            setTimeout(() => {
+              document.body.classList.remove('print-slip-only');
+            }, 500);
+          }, 100);
+        };
+
+        const isCellMatched = (cls, day, period) => {
+          if (!searchKeyword.value) return false;
+          const kw = searchKeyword.value.toLowerCase().trim();
+          const lesson = getLesson(cls, day, period);
+          if (!lesson) return false;
+          return (
+            lesson.subject.toLowerCase().includes(kw) ||
+            lesson.teacher.toLowerCase().includes(kw) ||
+            cls.toLowerCase().includes(kw)
+          );
+        };
+
+        const getGradeBadgeColor = (cls) => {
+          if (cls.startsWith('七年')) return 'bg-sky-500';
+          if (cls.startsWith('八年')) return 'bg-emerald-500';
+          return 'bg-purple-500';
+        };
+
+        const printSchedule = () => window.print();
+
+        const exportToCSV = () => {
+          let csvContent = "\uFEFF";
+          csvContent += `新北市立佳林國民中學 課表彙整 (${selectedGradeLabel.value} - ${selectedDay.value} - ${selectedWeekModeLabel.value})\n`;
+          csvContent += "班級,第一節(08:30-09:15),第二節(09:25-10:10),第三節(10:20-11:05),第四節(11:05-12:00),第五節(13:05-13:50),第六節(14:05-14:50),第七節(15:05-15:50)\n";
+
+          filteredClasses.value.forEach(cls => {
+            const row = [cls];
+            for (let p = 1; p <= 7; p++) {
+              const l = getLesson(cls, selectedDay.value, p);
+              row.push(l ? `"${l.subject} (${l.teacher})"` : '""');
+            }
+            csvContent += row.join(",") + "\n";
+          });
+
+          const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+          const link = document.createElement("a");
+          const url = URL.createObjectURL(blob);
+          link.setAttribute("href", url);
+          link.setAttribute("download", `佳林國中_${selectedGradeLabel.value}_${selectedDay.value}_課表彙整.csv`);
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        };
+
+        return {
+          currentView,
+          selectedDay,
+          selectedGrade,
+          selectedGradeLabel,
+          selectedWeekMode,
+          selectedWeekModeLabel,
+          selectedTeacher,
+          selectedClass,
+          searchKeyword,
+          subTeacher,
+          subDay,
+          subPeriod,
+          subMode,
+          subSameSubjectOnly,
+          activeSlipData,
+          subCurrentTargetLesson,
+          subCandidatesList,
+          copyRequestText,
+          prepareOfficialSlip,
+          printOfficialSlip,
+          days,
+          grades,
+          periodHeaders,
+          allClassesList,
+          allTeachersList,
+          filteredClasses,
+          searchedTeachersList,
+          uniqueTeachersTodayCount,
+          currentTotalClasses,
+          currentTotalPeriods,
+          getLesson,
+          getTeacherPeriodLesson,
+          getTeacherDailyCount,
+          getTeacherWeeklyTotal,
+          isCellMatched,
+          getGradeBadgeColor,
+          printSchedule,
+          exportToCSV
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
