@@ -140,9 +140,43 @@
           </button>
           <button 
             @click="exportToCSV" 
-            class="bg-slate-700 hover:bg-slate-600 text-white px-3.5 py-1.5 rounded-lg text-sm font-medium transition shadow flex items-center gap-1.5">
-            <i class="fa-solid fa-file-excel"></i> 匯出 CSV
+            class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition shadow flex items-center gap-1.5"
+            title="匯出各班級課表 CSV">
+            <i class="fa-solid fa-file-excel"></i> 匯出班級課表
           </button>
+          
+          <!-- 匯出教師授課與空堂分佈 CSV 按鈕 (含方向切換下拉) -->
+          <div class="relative inline-block text-left" id="export-dropdown-wrapper">
+            <button 
+              @click="showExportMenu = !showExportMenu"
+              class="bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-1.5 rounded-lg text-sm font-medium transition shadow flex items-center gap-1.5">
+              <i class="fa-solid fa-user-check"></i> 匯出教師空堂表 <i class="fa-solid fa-chevron-down text-xs ml-0.5"></i>
+            </button>
+            <div 
+              v-if="showExportMenu" 
+              @click="showExportMenu = false"
+              class="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-50 text-slate-700 text-xs">
+              <button 
+                @click="exportTeacherCSV('teachers_as_rows')"
+                class="w-full text-left px-4 py-2.5 hover:bg-indigo-50 hover:text-indigo-700 flex items-center justify-between transition">
+                <span>
+                  <strong class="block font-bold text-slate-800">直行節次 × 橫列教師</strong>
+                  <span class="text-[11px] text-slate-500">直行各節次(第1~8節)，橫列為各教師姓名</span>
+                </span>
+                <i class="fa-solid fa-file-csv text-indigo-600 text-base"></i>
+              </button>
+              <div class="border-t border-slate-100 my-1"></div>
+              <button 
+                @click="exportTeacherCSV('periods_as_rows')"
+                class="w-full text-left px-4 py-2.5 hover:bg-indigo-50 hover:text-indigo-700 flex items-center justify-between transition">
+                <span>
+                  <strong class="block font-bold text-slate-800">直向節次縱覽 (轉置版)</strong>
+                  <span class="text-[11px] text-slate-500">直向為各節次往下，橫向標題為各教師姓名</span>
+                </span>
+                <i class="fa-solid fa-table-columns text-emerald-600 text-base"></i>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </header>
@@ -290,7 +324,12 @@
               <tr v-for="cls in filteredClasses" :key="cls" class="hover:bg-indigo-50/40 transition">
                 <td class="py-2.5 px-3 font-bold text-slate-800 bg-slate-50 border-r border-slate-200 sticky left-0 z-10 flex items-center justify-center gap-1.5">
                   <span class="w-2 h-2 rounded-full" :class="getGradeBadgeColor(cls)"></span>
-                  {{ cls }}
+                  <span 
+                    @click="navigateToClass(cls)"
+                    class="cursor-pointer hover:text-indigo-700 hover:underline transition"
+                    title="點擊查看此班級週課表">
+                    {{ cls }}
+                  </span>
                 </td>
 
                 <td v-for="pIndex in 8" :key="pIndex" 
@@ -304,11 +343,19 @@
                     <template v-if="getLessonDisplay(cls, selectedDay, pIndex).isSplit">
                       <div v-if="getLessonDisplay(cls, selectedDay, pIndex).odd" class="text-[11px] font-medium text-slate-800">
                         <span class="text-[10px] text-indigo-500 font-bold">[單]</span> {{ getLessonDisplay(cls, selectedDay, pIndex).odd.subject }} 
-                        <span class="text-indigo-600 block text-[10px] font-semibold">{{ getLessonDisplay(cls, selectedDay, pIndex).odd.teacher }}</span>
+                        <span 
+                          @click="navigateToTeacher(getLessonDisplay(cls, selectedDay, pIndex).odd.teacher)"
+                          class="text-indigo-600 block text-[10px] font-semibold cursor-pointer hover:underline hover:text-indigo-800 transition">
+                          {{ getLessonDisplay(cls, selectedDay, pIndex).odd.teacher }}
+                        </span>
                       </div>
                       <div v-if="getLessonDisplay(cls, selectedDay, pIndex).even" class="text-[11px] font-medium text-slate-800 mt-1">
                         <span class="text-[10px] text-emerald-500 font-bold">[雙]</span> {{ getLessonDisplay(cls, selectedDay, pIndex).even.subject }} 
-                        <span class="text-emerald-600 block text-[10px] font-semibold">{{ getLessonDisplay(cls, selectedDay, pIndex).even.teacher }}</span>
+                        <span 
+                          @click="navigateToTeacher(getLessonDisplay(cls, selectedDay, pIndex).even.teacher)"
+                          class="text-emerald-600 block text-[10px] font-semibold cursor-pointer hover:underline hover:text-emerald-800 transition">
+                          {{ getLessonDisplay(cls, selectedDay, pIndex).even.teacher }}
+                        </span>
                       </div>
                     </template>
 
@@ -316,7 +363,9 @@
                       <span class="font-bold text-slate-800 text-[12px]">
                         {{ getLessonDisplay(cls, selectedDay, pIndex).subject }}
                       </span>
-                      <span class="text-indigo-600 font-semibold text-[11px] mt-0.5">
+                      <span 
+                        @click="navigateToTeacher(getLessonDisplay(cls, selectedDay, pIndex).teacher)"
+                        class="text-indigo-600 font-semibold text-[11px] mt-0.5 cursor-pointer hover:underline hover:text-indigo-800 transition">
                         {{ getLessonDisplay(cls, selectedDay, pIndex).teacher }}
                       </span>
                     </template>
@@ -331,12 +380,30 @@
 
       <!-- ================= 視圖 2: 教師當日空堂與授課表 ================= -->
       <div v-if="currentView === 'teacher_matrix'" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div class="no-print bg-slate-50 px-6 py-3 border-b border-slate-200 flex justify-between items-center">
-          <h3 class="font-bold text-slate-700 flex items-center gap-2">
+        <div class="no-print bg-slate-50 px-6 py-3 border-b border-slate-200 flex flex-wrap justify-between items-center gap-2">
+          <div class="flex items-center gap-2">
             <span class="w-2.5 h-2.5 rounded-full bg-emerald-600"></span>
-            {{ selectedDay }} - 教師授課與空堂分佈 (含第8節併班支援)
-          </h3>
-          <span class="text-xs text-slate-400">綠色代表空堂 / 藍色代表授課班級</span>
+            <h3 class="font-bold text-slate-700 text-sm md:text-base">
+              {{ selectedDay }} - 教師當日授課與空堂分佈 (含第8節併班)
+            </h3>
+            <span class="text-xs text-slate-400 ml-2 hidden sm:inline">綠色代表空堂 / 藍色代表授課班級</span>
+          </div>
+
+          <!-- 快捷匯出按鈕群 -->
+          <div class="flex items-center gap-2">
+            <button 
+              @click="exportTeacherCSV('teachers_as_rows')" 
+              class="bg-indigo-700 hover:bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition shadow flex items-center gap-1.5"
+              title="匯出直行是節次，橫列是教師姓名的 CSV 檔案">
+              <i class="fa-solid fa-file-csv"></i> 匯出空堂表 (直行節次 × 橫列教師)
+            </button>
+            <button 
+              @click="exportTeacherCSV('periods_as_rows')" 
+              class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition shadow flex items-center gap-1.5"
+              title="匯出轉置版：直向為節次，橫向展開全校教師">
+              <i class="fa-solid fa-table-columns"></i> 轉置匯出
+            </button>
+          </div>
         </div>
 
         <div class="overflow-x-auto">
@@ -356,13 +423,24 @@
             <tbody class="divide-y divide-slate-100 text-xs">
               <tr v-for="teacher in searchedTeachersList" :key="teacher" class="hover:bg-slate-50 transition">
                 <td class="py-2.5 px-3 font-bold text-slate-800 bg-slate-50 border-r border-slate-200 sticky left-0 z-10">
-                  {{ teacher }}
+                  <span 
+                    @click="navigateToTeacher(teacher)"
+                    class="cursor-pointer hover:text-indigo-700 hover:underline transition"
+                    title="點擊查看教師個人週課表">
+                    {{ teacher }}
+                  </span>
                 </td>
                 
                 <td v-for="pIndex in 8" :key="pIndex" class="py-2 px-1 border-r border-slate-100">
                   <div v-if="getTeacherPeriodOccupied(teacher, selectedDay, pIndex)" class="bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg py-1 px-1">
-                    <div class="font-bold text-[11px] leading-tight">
-                      {{ getTeacherPeriodOccupied(teacher, selectedDay, pIndex).classes.join(' + ') }}
+                    <div class="font-bold text-[11px] leading-tight flex flex-wrap justify-center gap-1">
+                      <span 
+                        v-for="(cName, cIdx) in getTeacherPeriodOccupied(teacher, selectedDay, pIndex).classes" 
+                        :key="cIdx"
+                        @click="navigateToClass(cName)"
+                        class="cursor-pointer hover:underline hover:text-indigo-900 transition">
+                        {{ cName }}<span v-if="cIdx < getTeacherPeriodOccupied(teacher, selectedDay, pIndex).classes.length - 1" class="text-slate-400 font-normal ml-1">+</span>
+                      </span>
                     </div>
                     <div class="text-[10px] text-slate-500 mt-0.5">
                       {{ getTeacherPeriodOccupied(teacher, selectedDay, pIndex).subject }}
@@ -414,9 +492,15 @@
                     class="py-3 px-2 border border-slate-200 h-16"
                     :class="getTeacherPeriodOccupied(selectedTeacher, day, pIdx+1) ? 'bg-indigo-50/70' : 'bg-white'">
                   <div v-if="getTeacherPeriodOccupied(selectedTeacher, day, pIdx+1)">
-                    <span class="inline-block px-2 py-0.5 bg-indigo-600 text-white rounded-full text-[10px] font-semibold mb-1">
-                      {{ getTeacherPeriodOccupied(selectedTeacher, day, pIdx+1).classes.join(' + ') }}
-                    </span>
+                    <div class="mb-1 flex flex-wrap justify-center gap-1">
+                      <span 
+                        v-for="(cName, cIdx) in getTeacherPeriodOccupied(selectedTeacher, day, pIdx+1).classes" 
+                        :key="cIdx"
+                        @click="navigateToClass(cName)"
+                        class="inline-block px-2 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full text-[10px] font-semibold cursor-pointer transition shadow-sm">
+                        {{ cName }}
+                      </span>
+                    </div>
                     <div class="font-bold text-slate-800 text-xs">
                       {{ getTeacherPeriodOccupied(selectedTeacher, day, pIdx+1).subject }}
                     </div>
@@ -433,7 +517,14 @@
       <div v-if="currentView === 'single_class'" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         <div class="p-6 bg-gradient-to-r from-slate-900 to-slate-800 text-white flex justify-between items-center">
           <div>
-            <div class="text-xs text-slate-300">班級週課表 (導師: {{ getTutorName(selectedClass) }})</div>
+            <div class="text-xs text-slate-300">
+              班級週課表 (導師: 
+              <span 
+                @click="navigateToTeacher(getTutorName(selectedClass))" 
+                class="underline cursor-pointer hover:text-amber-300 font-semibold transition">
+                {{ getTutorName(selectedClass) }}
+              </span>)
+            </div>
             <h2 class="text-2xl font-bold mt-0.5">{{ selectedClass }}</h2>
           </div>
           <span class="text-xs bg-slate-700 px-3 py-1.5 rounded-lg border border-slate-600">含第1~8節課表</span>
@@ -460,18 +551,28 @@
                     <template v-if="getLessonDisplay(selectedClass, day, pIdx+1).isSplit">
                       <div v-if="getLessonDisplay(selectedClass, day, pIdx+1).odd">
                         <span class="font-bold text-slate-800">[單] {{ getLessonDisplay(selectedClass, day, pIdx+1).odd.subject }}</span>
-                        <span class="text-indigo-600 block text-xs">{{ getLessonDisplay(selectedClass, day, pIdx+1).odd.teacher }}</span>
+                        <span 
+                          @click="navigateToTeacher(getLessonDisplay(selectedClass, day, pIdx+1).odd.teacher)"
+                          class="text-indigo-600 block text-xs cursor-pointer hover:underline hover:text-indigo-800 transition font-medium">
+                          {{ getLessonDisplay(selectedClass, day, pIdx+1).odd.teacher }}
+                        </span>
                       </div>
                       <div v-if="getLessonDisplay(selectedClass, day, pIdx+1).even" class="mt-1">
                         <span class="font-bold text-slate-800">[雙] {{ getLessonDisplay(selectedClass, day, pIdx+1).even.subject }}</span>
-                        <span class="text-emerald-600 block text-xs">{{ getLessonDisplay(selectedClass, day, pIdx+1).even.teacher }}</span>
+                        <span 
+                          @click="navigateToTeacher(getLessonDisplay(selectedClass, day, pIdx+1).even.teacher)"
+                          class="text-emerald-600 block text-xs cursor-pointer hover:underline hover:text-emerald-800 transition font-medium">
+                          {{ getLessonDisplay(selectedClass, day, pIdx+1).even.teacher }}
+                        </span>
                       </div>
                     </template>
                     <template v-else>
                       <span class="font-bold text-slate-800 text-sm">
                         {{ getLessonDisplay(selectedClass, day, pIdx+1).subject }}
                       </span>
-                      <span class="text-indigo-600 font-semibold text-xs mt-0.5">
+                      <span 
+                        @click="navigateToTeacher(getLessonDisplay(selectedClass, day, pIdx+1).teacher)"
+                        class="text-indigo-600 font-semibold text-xs mt-0.5 cursor-pointer hover:underline hover:text-indigo-800 transition">
                         {{ getLessonDisplay(selectedClass, day, pIdx+1).teacher }}
                       </span>
                     </template>
@@ -576,11 +677,17 @@
             <div v-for="(cand, idx) in matchedCandidates" :key="idx" class="py-4 first:pt-0 last:pb-0 flex flex-wrap items-center justify-between gap-4">
               <div class="space-y-1.5">
                 <div class="flex items-center gap-2">
-                  <span class="px-2.5 py-0.5 bg-indigo-100 text-indigo-800 text-xs font-bold rounded-full">
+                  <span 
+                    @click="navigateToTeacher(cand.teacherB)"
+                    class="px-2.5 py-0.5 bg-indigo-100 hover:bg-indigo-200 text-indigo-800 text-xs font-bold rounded-full cursor-pointer transition"
+                    title="點擊查看此位教師課表">
                     {{ cand.teacherB }} 老師
                   </span>
                   <span class="text-xs font-semibold text-slate-600">({{ cand.subjectB }})</span>
-                  <span class="text-xs text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
+                  <span 
+                    @click="navigateToClass(cand.className)"
+                    class="text-xs text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded cursor-pointer transition font-medium"
+                    title="點擊查看班級課表">
                     同班級：{{ cand.className }}
                   </span>
                   <span v-if="subPeriod === 8" class="text-xs text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded font-bold">
@@ -623,12 +730,18 @@
           <div v-else class="p-4 divide-y divide-slate-100">
             <div v-for="(cand, idx) in matchedCandidates" :key="idx" class="py-3.5 first:pt-0 last:pb-0 flex flex-wrap items-center justify-between gap-4">
               <div class="flex items-center gap-3">
-                <div class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-xs">
+                <div 
+                  @click="navigateToTeacher(cand.teacher)"
+                  class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-xs cursor-pointer hover:bg-indigo-200 transition">
                   {{ cand.teacher[0] }}
                 </div>
                 <div>
                   <div class="font-bold text-slate-800 text-sm flex items-center gap-2">
-                    {{ cand.teacher }} 老師
+                    <span 
+                      @click="navigateToTeacher(cand.teacher)" 
+                      class="cursor-pointer hover:text-indigo-700 hover:underline transition">
+                      {{ cand.teacher }} 老師
+                    </span>
                     <span v-if="cand.isSameSubject" class="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded">同領域教師</span>
                   </div>
                   <div class="text-xs text-slate-400 mt-0.5">{{ subDay }} {{ periodHeaders[subPeriod-1].name }} 全校空堂可代課</div>
@@ -769,13 +882,20 @@
         </div>
 
       </div>
-
     </main>
 
-    <!-- 頁尾 -->
+    <!-- 頁尾 (列印時隱藏) -->
     <footer class="no-print bg-slate-100 border-t border-slate-200 py-4 text-center text-xs text-slate-500 mt-auto">
       <p>佳林國民中學 課程表系統 • 支援當日全校/各年級列印、個人課表、第8節併班及同班級智慧調代課</p>
     </footer>
+
+    <!-- 浮動提示 Toast (取代 alert) -->
+    <div 
+      v-if="toastMsg" 
+      class="fixed bottom-6 right-6 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-2xl border border-slate-700 z-50 flex items-center gap-3 transition-all duration-300">
+      <span class="text-emerald-400 text-lg"><i class="fa-solid fa-circle-check"></i></span>
+      <span class="text-sm font-medium">{{ toastMsg }}</span>
+    </div>
 
   </div>
 
@@ -1149,9 +1269,18 @@
         const selectedTeacher = ref('汪家慧');
         const selectedClass = ref('七年一班');
         const searchKeyword = ref('');
+        const showExportMenu = ref(false);
+        const toastMsg = ref('');
 
-        // 調代課媒合 state
-        const matchType = ref('swap');
+        const triggerToast = (msg) => {
+          toastMsg.value = msg;
+          setTimeout(() => {
+            toastMsg.value = '';
+          }, 3200);
+        };
+
+        // 調代課媒合模組 state
+        const matchType = ref('swap'); // 'swap' 或 'sub'
         const subTeacher = ref('徐嘉琦');
         const subDay = ref('星期一');
         const subPeriod = ref(5);
@@ -1178,7 +1307,7 @@
 
         const allClassesList = Object.keys(RAW_DATASET);
 
-        // 整理所有教師名單
+        // 整理全校所有教師名單
         const allTeachersList = computed(() => {
           const tSet = new Set();
           for (const cls in RAW_DATASET) {
@@ -1216,7 +1345,7 @@
           if (selectedGrade.value === 'all') return allClassesList;
           const prefixMap = { '7': '七年', '8': '八年', '9': '九年' };
           const prefix = prefixMap[selectedGrade.value];
-          return allClassesList.filter(c => c.startsWith(prefix) || (selectedGrade.value === '8' && c.startsWith('資源班')));
+          return allClassesList.filter(c => c.startsWith(prefix));
         });
 
         const selectedGradeLabel = computed(() => {
@@ -1234,7 +1363,7 @@
           return RAW_DATASET[clsName]?.tutor || '未設';
         };
 
-        // 取得特定日節課堂顯示物件
+        // 取得班級在指定日/節之排課 (響應單雙週切換)
         const getLessonDisplay = (clsName, day, period) => {
           const item = RAW_DATASET[clsName]?.schedule?.[day]?.[period];
           if (!item) return null;
@@ -1265,7 +1394,7 @@
           return null;
         };
 
-        // 檢查教師在某日某節是否授課 (支援第8節併班查詢)
+        // 檢查教師在指定日/節是否授課 (支援第8節併班)
         const getTeacherPeriodOccupied = (teacherName, day, period) => {
           const matchedClasses = [];
           let subjectFound = "";
@@ -1356,7 +1485,7 @@
           return null;
         });
 
-        // 媒合演算法 (第8節限調第8節、同班級教師、雙向空堂)
+        // 媒合演算法 (同班級對調、第8節隔離、雙向空堂)
         const matchedCandidates = computed(() => {
           if (!targetLessonInfo.value) return [];
 
@@ -1386,7 +1515,7 @@
             classTeachers.forEach(teacherB => {
               days.forEach(d2 => {
                 for (let p2 = 1; p2 <= 8; p2++) {
-                  // 第8節隔離
+                  // 第8節隔離機制
                   if (isPeriod8 && p2 !== 8) continue;
                   if (!isPeriod8 && p2 === 8) continue;
 
@@ -1452,6 +1581,7 @@
           }
         });
 
+        // 複製請託訊息草稿 (使用 document.execCommand 確保相容性)
         const copySwapMsg = (cand) => {
           const msg = `【調課請託】${cand.teacherB}老師您好：我是${subTeacher.value}。想請教您是否方便對調【${cand.className}】課堂？原課：${subDay.value}第${subPeriod.value}節(${targetLessonInfo.value.subject}) 🧮 對調：${cand.dayB}第${cand.periodB}節(${cand.subjectB})。期待您的回覆，非常感謝！`;
           const ta = document.createElement("textarea");
@@ -1460,7 +1590,7 @@
           ta.select();
           document.execCommand('copy');
           document.body.removeChild(ta);
-          alert('✅ 調課請託訊息已成功複製至剪貼簿！');
+          triggerToast('調課請託訊息已成功複製至剪貼簿！');
         };
 
         const copySubMsg = (cand) => {
@@ -1471,7 +1601,7 @@
           ta.select();
           document.execCommand('copy');
           document.body.removeChild(ta);
-          alert('✅ 代課請託訊息已成功複製至剪貼簿！');
+          triggerToast('代課請託訊息已成功複製至剪貼簿！');
         };
 
         const generateSlip = (type, cand) => {
@@ -1537,6 +1667,26 @@
           return 'bg-purple-500';
         };
 
+        const navigateToTeacher = (rawTeacherName) => {
+          if (!rawTeacherName) return;
+          const parts = rawTeacherName.replace(/\(單\)|\(雙\)/g, '').trim().split(/[\/\s]+/);
+          const matched = parts.find(t => allTeachersList.value.includes(t)) || parts[0];
+          if (matched && allTeachersList.value.includes(matched)) {
+            selectedTeacher.value = matched;
+            currentView.value = 'single_teacher';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+        };
+
+        const navigateToClass = (className) => {
+          if (!className) return;
+          if (allClassesList.includes(className)) {
+            selectedClass.value = className;
+            currentView.value = 'single_class';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+        };
+
         const printSchedule = () => window.print();
 
         const exportToCSV = () => {
@@ -1566,6 +1716,82 @@
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
+          triggerToast(`已成功匯出 ${selectedGradeLabel.value} ${selectedDay.value} 班級課表 CSV`);
+        };
+
+        const exportTeacherCSV = (format = 'teachers_as_rows') => {
+          let csv = "\uFEFF";
+          const currentDay = selectedDay.value;
+          const currentWeekLabel = selectedWeekModeLabel.value;
+          const teachers = searchedTeachersList.value;
+
+          if (format === 'teachers_as_rows') {
+            csv += `新北市立佳林國民中學 教師當日授課與空堂分佈彙整 (${currentDay} - ${currentWeekLabel})\n`;
+            csv += "教師姓名,第一節 (08:30-09:15),第二節 (09:25-10:10),第三節 (10:20-11:05),第四節 (11:15-12:00),第五節 (13:05-13:50),第六節 (14:05-14:50),第七節 (15:05-15:50),第八節 (16:00-16:45),當日授課總節數\n";
+
+            teachers.forEach(tName => {
+              const row = [tName];
+              let dailyCount = 0;
+
+              for (let p = 1; p <= 8; p++) {
+                const occupied = getTeacherPeriodOccupied(tName, currentDay, p);
+                if (occupied) {
+                  dailyCount++;
+                  const mergedTag = occupied.isMerged ? " [併班]" : "";
+                  row.push(`"${occupied.classes.join('+')} (${occupied.subject}${mergedTag})"`);
+                } else {
+                  row.push('"空堂"');
+                }
+              }
+              row.push(`"${dailyCount} 節"`);
+              csv += row.join(",") + "\n";
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = `佳林國中_${currentDay}_教師授課與空堂分佈(直行節次x橫列教師).csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            triggerToast(`已成功匯出「直行節次 × 橫列教師」空堂分佈 CSV！`);
+
+          } else {
+            csv += `新北市立佳林國民中學 教師授課與空堂分佈_轉置縱覽表 (${currentDay} - ${currentWeekLabel})\n`;
+            const headerRow = ["節次", "時段", ...teachers.map(t => `"${t}"`)];
+            csv += headerRow.join(",") + "\n";
+
+            for (let p = 1; p <= 8; p++) {
+              const pInfo = periodHeaders[p - 1];
+              const row = [pInfo.name, pInfo.time];
+
+              teachers.forEach(tName => {
+                const occupied = getTeacherPeriodOccupied(tName, currentDay, p);
+                if (occupied) {
+                  const mergedTag = occupied.isMerged ? " [併班]" : "";
+                  row.push(`"${occupied.classes.join('+')} (${occupied.subject}${mergedTag})"`);
+                } else {
+                  row.push('"空堂"');
+                }
+              });
+              csv += row.join(",") + "\n";
+            }
+
+            const summaryRow = ["當日總堂數", "—"];
+            teachers.forEach(tName => {
+              summaryRow.push(`"${getTeacherDailyCount(tName, currentDay)} 節"`);
+            });
+            csv += summaryRow.join(",") + "\n";
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = `佳林國中_${currentDay}_教師授課與空堂分佈(轉置縱向節次).csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            triggerToast(`已成功匯出「轉置版空堂分佈」CSV！`);
+          }
         };
 
         return {
@@ -1578,6 +1804,8 @@
           selectedTeacher,
           selectedClass,
           searchKeyword,
+          showExportMenu,
+          toastMsg,
           matchType,
           subTeacher,
           subDay,
@@ -1603,8 +1831,11 @@
           printSlipOnly,
           isCellMatched,
           getGradeBadgeColor,
+          navigateToTeacher,
+          navigateToClass,
           printSchedule,
-          exportToCSV
+          exportToCSV,
+          exportTeacherCSV
         };
       }
     }).mount('#app');
